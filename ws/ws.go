@@ -11,6 +11,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/banky/go-hyperliquid/constants"
 	"github.com/coder/websocket"
 )
 
@@ -50,15 +51,15 @@ func (s *subscription) Err() <-chan error {
 type ClientInterface interface {
 	Start(ctx context.Context) error
 	Stop()
-	SubscribeAllMids(ctx context.Context, ch chan<- AllMidsMessage) (Subscription, error)
-	SubscribeL2Book(ctx context.Context, coin string, ch chan<- L2BookMessage) (Subscription, error)
-	SubscribeTrades(ctx context.Context, coin string, ch chan<- TradesMessage) (Subscription, error)
-	SubscribeCandle(ctx context.Context, coin string, interval string, ch chan<- CandleMessage) (Subscription, error)
-	SubscribeBbo(ctx context.Context, coin string, ch chan<- BboMessage) (Subscription, error)
-	SubscribeActiveAssetCtx(ctx context.Context, coin string, ch chan<- ActiveAssetCtxMessage) (Subscription, error)
-	SubscribeUserEvents(ctx context.Context, user string, ch chan<- UserEventsMessage) (Subscription, error)
-	SubscribeUserFills(ctx context.Context, user string, ch chan<- UserFillsMessage) (Subscription, error)
-	SubscribeOrderUpdates(ctx context.Context, user string, ch chan<- OrderUpdatesMessage) (Subscription, error)
+	SubscribeAllMids(ctx context.Context, ch chan AllMidsMessage) (Subscription, error)
+	SubscribeL2Book(ctx context.Context, coin string, ch chan L2BookMessage) (Subscription, error)
+	SubscribeTrades(ctx context.Context, coin string, ch chan TradesMessage) (Subscription, error)
+	SubscribeCandle(ctx context.Context, coin string, interval string, ch chan CandleMessage) (Subscription, error)
+	SubscribeBbo(ctx context.Context, coin string, ch chan BboMessage) (Subscription, error)
+	SubscribeActiveAssetCtx(ctx context.Context, coin string, ch chan ActiveAssetCtxMessage) (Subscription, error)
+	SubscribeUserEvents(ctx context.Context, user string, ch chan UserEventsMessage) (Subscription, error)
+	SubscribeUserFills(ctx context.Context, user string, ch chan UserFillsMessage) (Subscription, error)
+	SubscribeOrderUpdates(ctx context.Context, user string, ch chan OrderUpdatesMessage) (Subscription, error)
 }
 
 // Client manages WebSocket subscriptions and message routing
@@ -82,6 +83,10 @@ type channelSubscription struct {
 
 // New creates a new WebSocket Client
 func New(baseURL string) *Client {
+	if baseURL == "" {
+		baseURL = constants.MAINNET_API_URL
+	}
+
 	return &Client{
 		baseURL:             baseURL,
 		activeSubscriptions: make(map[string][]*channelSubscription),
@@ -269,6 +274,9 @@ func (m *Client) handleMessage(data []byte) {
 		m.handleActiveAssetCtx(raw, channel)
 	case "activeAssetData":
 		m.handleActiveAssetData(raw)
+	// case "subscriptionResponse":
+	// Don't care about these
+	// break
 	default:
 		log.Printf("websocket unknown channel: %s", channel)
 	}
@@ -527,7 +535,7 @@ func (m *Client) routeMessage(identifier string, msg any) {
 // ===== Type-safe subscription methods =====
 
 // SubscribeAllMids subscribes to all mid-prices
-func (m *Client) SubscribeAllMids(ctx context.Context, ch chan<- AllMidsMessage) (Subscription, error) {
+func (m *Client) SubscribeAllMids(ctx context.Context, ch chan AllMidsMessage) (Subscription, error) {
 	errChan := make(chan error, 1)
 
 	m.mu.Lock()
@@ -568,7 +576,7 @@ func (m *Client) SubscribeAllMids(ctx context.Context, ch chan<- AllMidsMessage)
 }
 
 // SubscribeL2Book subscribes to level 2 order book for a coin
-func (m *Client) SubscribeL2Book(ctx context.Context, coin string, ch chan<- L2BookMessage) (Subscription, error) {
+func (m *Client) SubscribeL2Book(ctx context.Context, coin string, ch chan L2BookMessage) (Subscription, error) {
 	errChan := make(chan error, 1)
 
 	m.mu.Lock()
@@ -610,7 +618,7 @@ func (m *Client) SubscribeL2Book(ctx context.Context, coin string, ch chan<- L2B
 }
 
 // SubscribeTrades subscribes to trades for a coin
-func (m *Client) SubscribeTrades(ctx context.Context, coin string, ch chan<- TradesMessage) (Subscription, error) {
+func (m *Client) SubscribeTrades(ctx context.Context, coin string, ch chan TradesMessage) (Subscription, error) {
 	errChan := make(chan error, 1)
 
 	m.mu.Lock()
@@ -652,7 +660,7 @@ func (m *Client) SubscribeTrades(ctx context.Context, coin string, ch chan<- Tra
 }
 
 // SubscribeUserEvents subscribes to user events
-func (m *Client) SubscribeUserEvents(ctx context.Context, user string, ch chan<- UserEventsMessage) (Subscription, error) {
+func (m *Client) SubscribeUserEvents(ctx context.Context, user string, ch chan UserEventsMessage) (Subscription, error) {
 	errChan := make(chan error, 1)
 
 	m.mu.Lock()
@@ -694,7 +702,7 @@ func (m *Client) SubscribeUserEvents(ctx context.Context, user string, ch chan<-
 }
 
 // SubscribeUserFills subscribes to user fills
-func (m *Client) SubscribeUserFills(ctx context.Context, user string, ch chan<- UserFillsMessage) (Subscription, error) {
+func (m *Client) SubscribeUserFills(ctx context.Context, user string, ch chan UserFillsMessage) (Subscription, error) {
 	errChan := make(chan error, 1)
 
 	m.mu.Lock()
@@ -736,7 +744,7 @@ func (m *Client) SubscribeUserFills(ctx context.Context, user string, ch chan<- 
 }
 
 // SubscribeCandle subscribes to candle data
-func (m *Client) SubscribeCandle(ctx context.Context, coin string, interval string, ch chan<- CandleMessage) (Subscription, error) {
+func (m *Client) SubscribeCandle(ctx context.Context, coin string, interval string, ch chan CandleMessage) (Subscription, error) {
 	errChan := make(chan error, 1)
 
 	m.mu.Lock()
@@ -778,7 +786,7 @@ func (m *Client) SubscribeCandle(ctx context.Context, coin string, interval stri
 }
 
 // SubscribeOrderUpdates subscribes to order updates
-func (m *Client) SubscribeOrderUpdates(ctx context.Context, user string, ch chan<- OrderUpdatesMessage) (Subscription, error) {
+func (m *Client) SubscribeOrderUpdates(ctx context.Context, user string, ch chan OrderUpdatesMessage) (Subscription, error) {
 	errChan := make(chan error, 1)
 
 	m.mu.Lock()
@@ -820,7 +828,7 @@ func (m *Client) SubscribeOrderUpdates(ctx context.Context, user string, ch chan
 }
 
 // SubscribeUserFundings subscribes to user fundings
-func (m *Client) SubscribeUserFundings(ctx context.Context, user string, ch chan<- UserFundingsMessage) (Subscription, error) {
+func (m *Client) SubscribeUserFundings(ctx context.Context, user string, ch chan UserFundingsMessage) (Subscription, error) {
 	errChan := make(chan error, 1)
 
 	m.mu.Lock()
@@ -862,7 +870,7 @@ func (m *Client) SubscribeUserFundings(ctx context.Context, user string, ch chan
 }
 
 // SubscribeUserNonFundingLedgerUpdates subscribes to non-funding ledger updates
-func (m *Client) SubscribeUserNonFundingLedgerUpdates(ctx context.Context, user string, ch chan<- UserNonFundingLedgerUpdatesMessage) (Subscription, error) {
+func (m *Client) SubscribeUserNonFundingLedgerUpdates(ctx context.Context, user string, ch chan UserNonFundingLedgerUpdatesMessage) (Subscription, error) {
 	errChan := make(chan error, 1)
 
 	m.mu.Lock()
@@ -904,7 +912,7 @@ func (m *Client) SubscribeUserNonFundingLedgerUpdates(ctx context.Context, user 
 }
 
 // SubscribeWebData2 subscribes to web data
-func (m *Client) SubscribeWebData2(ctx context.Context, user string, ch chan<- WebData2Message) (Subscription, error) {
+func (m *Client) SubscribeWebData2(ctx context.Context, user string, ch chan WebData2Message) (Subscription, error) {
 	errChan := make(chan error, 1)
 
 	m.mu.Lock()
@@ -946,7 +954,7 @@ func (m *Client) SubscribeWebData2(ctx context.Context, user string, ch chan<- W
 }
 
 // SubscribeBbo subscribes to best bid/offer data
-func (m *Client) SubscribeBbo(ctx context.Context, coin string, ch chan<- BboMessage) (Subscription, error) {
+func (m *Client) SubscribeBbo(ctx context.Context, coin string, ch chan BboMessage) (Subscription, error) {
 	errChan := make(chan error, 1)
 
 	m.mu.Lock()
@@ -988,7 +996,7 @@ func (m *Client) SubscribeBbo(ctx context.Context, coin string, ch chan<- BboMes
 }
 
 // SubscribeActiveAssetCtx subscribes to active asset context
-func (m *Client) SubscribeActiveAssetCtx(ctx context.Context, coin string, ch chan<- ActiveAssetCtxMessage) (Subscription, error) {
+func (m *Client) SubscribeActiveAssetCtx(ctx context.Context, coin string, ch chan ActiveAssetCtxMessage) (Subscription, error) {
 	errChan := make(chan error, 1)
 
 	m.mu.Lock()
@@ -1030,7 +1038,7 @@ func (m *Client) SubscribeActiveAssetCtx(ctx context.Context, coin string, ch ch
 }
 
 // SubscribeActiveAssetData subscribes to active asset data
-func (m *Client) SubscribeActiveAssetData(ctx context.Context, coin string, user string, ch chan<- ActiveAssetDataMessage) (Subscription, error) {
+func (m *Client) SubscribeActiveAssetData(ctx context.Context, coin string, user string, ch chan ActiveAssetDataMessage) (Subscription, error) {
 	errChan := make(chan error, 1)
 
 	m.mu.Lock()
