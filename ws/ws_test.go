@@ -214,29 +214,25 @@ func TestChannelSubscription(t *testing.T) {
 
 func TestL2BookMessageRouting(t *testing.T) {
 	// Focus on testing message routing logic with predictable setup
-	client := New("http://localhost:8000") // URL doesn't matter, won't connect
+	// client := New("http://localhost:8000") // URL doesn't matter, won't connect
+
+	server := newMockWSServer(t)
+	defer server.close()
+
+	client := New(server.url)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	client.Start(ctx)
 
 	// Create subscriber channel
 	msgChan := make(chan L2BookMessage)
+	sub, err := client.SubscribeL2Book(ctx, "BTC", msgChan)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer sub.Unsubscribe()
 
-	// Manually set up subscription to test routing (bypasses WebSocket connection requirement)
-	id := 1
-	sub := L2BookSubscription{Coin: "BTC"}
-	identifier := sub.identifier()
-
-	// Create internal buffered channel (as subscribe() does)
-	internalChan := make(chan any, 10)
-	client.mu.Lock()
-	client.activeSubscriptions[identifier] = append(client.activeSubscriptions[identifier], &channelSubscription{
-		internalChan: internalChan,
-		id:           id,
-	})
-	client.mu.Unlock()
-
-	// Launch real delivery goroutine (not mocked)
-	go client.deliveryLoop(internalChan, msgChan)
-
-	// Give delivery goroutine time to start
 	time.Sleep(10 * time.Millisecond)
 
 	// Manually inject a message for testing
@@ -281,30 +277,23 @@ func TestL2BookMessageRouting(t *testing.T) {
 }
 
 func TestTradesMessageRouting(t *testing.T) {
-	// Focus on testing message routing logic with predictable setup
-	client := New("http://localhost:8000") // URL doesn't matter, won't connect
+	server := newMockWSServer(t)
+	defer server.close()
+
+	client := New(server.url)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	client.Start(ctx)
 
 	// Create subscriber channel
 	msgChan := make(chan TradesMessage)
+	sub, err := client.SubscribeTrades(ctx, "ETH", msgChan)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer sub.Unsubscribe()
 
-	// Manually set up subscription to test routing (bypasses WebSocket connection requirement)
-	id := 1
-	sub := TradesSubscription{Coin: "ETH"}
-	identifier := sub.identifier()
-
-	// Create internal buffered channel (as subscribe() does)
-	internalChan := make(chan any, 10)
-	client.mu.Lock()
-	client.activeSubscriptions[identifier] = append(client.activeSubscriptions[identifier], &channelSubscription{
-		internalChan: internalChan,
-		id:           id,
-	})
-	client.mu.Unlock()
-
-	// Launch real delivery goroutine (not mocked)
-	go client.deliveryLoop(internalChan, msgChan)
-
-	// Give delivery goroutine time to start
 	time.Sleep(10 * time.Millisecond)
 
 	msgData := map[string]any{
@@ -352,11 +341,12 @@ func TestUserEventsDuplicateSubscription(t *testing.T) {
 
 	client := New(server.url)
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
 	err := client.Start(ctx)
-	cancel()
 	if err != nil {
 		t.Fatalf("Start() failed: %v", err)
 	}
+	defer client.Stop()
 
 	time.Sleep(100 * time.Millisecond)
 
@@ -388,7 +378,6 @@ func TestUserEventsDuplicateSubscription(t *testing.T) {
 		t.Errorf("expected 1 active userEvents subscription, got %d", count)
 	}
 
-	client.Stop()
 }
 
 // ===== Add/Remove Subscription Tests =====
@@ -399,8 +388,8 @@ func TestUnsubscribe(t *testing.T) {
 
 	client := New(server.url)
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
 	err := client.Start(ctx)
-	cancel()
 	if err != nil {
 		t.Fatalf("Start() failed: %v", err)
 	}
@@ -468,39 +457,32 @@ func TestUnsubscribe(t *testing.T) {
 // ===== Multiple Subscriptions Per Channel =====
 
 func TestMultipleSubscriptionsPerChannel(t *testing.T) {
-	// Test that multiple subscriptions receive the same message
-	client := New("http://localhost:8000") // URL doesn't matter, won't connect
+	server := newMockWSServer(t)
+	defer server.close()
+
+	client := New(server.url)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	client.Start(ctx)
 
 	// Create subscriber channels
 	msgChan1 := make(chan L2BookMessage)
 	msgChan2 := make(chan L2BookMessage)
 
-	// Manually set up both subscriptions
-	id1 := 1
-	id2 := 2
-	sub := L2BookSubscription{Coin: "BTC"}
-	identifier := sub.identifier()
+	// Subscribe to the same coin twice
+	sub1, err := client.SubscribeL2Book(ctx, "BTC", msgChan1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer sub1.Unsubscribe()
 
-	// Create internal buffered channels (as subscribe() does)
-	internalChan1 := make(chan any, 10)
-	internalChan2 := make(chan any, 10)
+	sub2, err := client.SubscribeL2Book(ctx, "BTC", msgChan2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer sub2.Unsubscribe()
 
-	client.mu.Lock()
-	client.activeSubscriptions[identifier] = append(client.activeSubscriptions[identifier], &channelSubscription{
-		internalChan: internalChan1,
-		id:           id1,
-	})
-	client.activeSubscriptions[identifier] = append(client.activeSubscriptions[identifier], &channelSubscription{
-		internalChan: internalChan2,
-		id:           id2,
-	})
-	client.mu.Unlock()
-
-	// Launch real delivery goroutines (not mocked)
-	go client.deliveryLoop(internalChan1, msgChan1)
-	go client.deliveryLoop(internalChan2, msgChan2)
-
-	// Give delivery goroutines time to start
 	time.Sleep(50 * time.Millisecond)
 
 	// Send message
@@ -547,8 +529,8 @@ func TestEmptyTradesMessage(t *testing.T) {
 
 	client := New(server.url)
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
 	err := client.Start(ctx)
-	cancel()
 	if err != nil {
 		t.Fatalf("Start() failed: %v", err)
 	}
@@ -589,8 +571,8 @@ func TestMissingDataField(t *testing.T) {
 
 	client := New(server.url)
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
 	err := client.Start(ctx)
-	cancel()
 	if err != nil {
 		t.Fatalf("Start() failed: %v", err)
 	}

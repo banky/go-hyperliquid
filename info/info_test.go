@@ -25,15 +25,15 @@ func (m *mockRestClient) Post(ctx context.Context, path string, body any, result
 type mockWsClient struct {
 	startFunc                   func(ctx context.Context) error
 	stopFunc                    func()
-	subscribeAllMidsFunc        func(ctx context.Context, ch chan ws.AllMidsMessage) (ws.Subscription, error)
-	subscribeL2BookFunc         func(ctx context.Context, coin string, ch chan ws.L2BookMessage) (ws.Subscription, error)
-	subscribeTradesFunc         func(ctx context.Context, coin string, ch chan ws.TradesMessage) (ws.Subscription, error)
-	subscribeCandleFunc         func(ctx context.Context, coin string, interval string, ch chan ws.CandleMessage) (ws.Subscription, error)
-	subscribeBboFunc            func(ctx context.Context, coin string, ch chan ws.BboMessage) (ws.Subscription, error)
-	subscribeActiveAssetCtxFunc func(ctx context.Context, coin string, ch chan ws.ActiveAssetCtxMessage) (ws.Subscription, error)
-	subscribeUserEventsFunc     func(ctx context.Context, user string, ch chan ws.UserEventsMessage) (ws.Subscription, error)
-	subscribeUserFillsFunc      func(ctx context.Context, user string, ch chan ws.UserFillsMessage) (ws.Subscription, error)
-	subscribeOrderUpdatesFunc   func(ctx context.Context, user string, ch chan ws.OrderUpdatesMessage) (ws.Subscription, error)
+	subscribeAllMidsFunc        func(ctx context.Context, ch chan<- ws.AllMidsMessage) (ws.Subscription, error)
+	subscribeL2BookFunc         func(ctx context.Context, coin string, ch chan<- ws.L2BookMessage) (ws.Subscription, error)
+	subscribeTradesFunc         func(ctx context.Context, coin string, ch chan<- ws.TradesMessage) (ws.Subscription, error)
+	subscribeCandleFunc         func(ctx context.Context, coin string, interval string, ch chan<- ws.CandleMessage) (ws.Subscription, error)
+	subscribeBboFunc            func(ctx context.Context, coin string, ch chan<- ws.BboMessage) (ws.Subscription, error)
+	subscribeActiveAssetCtxFunc func(ctx context.Context, coin string, ch chan<- ws.ActiveAssetCtxMessage) (ws.Subscription, error)
+	subscribeUserEventsFunc     func(ctx context.Context, user string, ch chan<- ws.UserEventsMessage) (ws.Subscription, error)
+	subscribeUserFillsFunc      func(ctx context.Context, user string, ch chan<- ws.UserFillsMessage) (ws.Subscription, error)
+	subscribeOrderUpdatesFunc   func(ctx context.Context, user string, ch chan<- ws.OrderUpdatesMessage) (ws.Subscription, error)
 }
 
 var _ ws.ClientInterface = (*mockWsClient)(nil)
@@ -51,63 +51,63 @@ func (m *mockWsClient) Stop() {
 	}
 }
 
-func (m *mockWsClient) SubscribeAllMids(ctx context.Context, ch chan ws.AllMidsMessage) (ws.Subscription, error) {
+func (m *mockWsClient) SubscribeAllMids(ctx context.Context, ch chan<- ws.AllMidsMessage) (ws.Subscription, error) {
 	if m.subscribeAllMidsFunc != nil {
 		return m.subscribeAllMidsFunc(ctx, ch)
 	}
 	return nil, nil
 }
 
-func (m *mockWsClient) SubscribeL2Book(ctx context.Context, coin string, ch chan ws.L2BookMessage) (ws.Subscription, error) {
+func (m *mockWsClient) SubscribeL2Book(ctx context.Context, coin string, ch chan<- ws.L2BookMessage) (ws.Subscription, error) {
 	if m.subscribeL2BookFunc != nil {
 		return m.subscribeL2BookFunc(ctx, coin, ch)
 	}
 	return nil, nil
 }
 
-func (m *mockWsClient) SubscribeTrades(ctx context.Context, coin string, ch chan ws.TradesMessage) (ws.Subscription, error) {
+func (m *mockWsClient) SubscribeTrades(ctx context.Context, coin string, ch chan<- ws.TradesMessage) (ws.Subscription, error) {
 	if m.subscribeTradesFunc != nil {
 		return m.subscribeTradesFunc(ctx, coin, ch)
 	}
 	return nil, nil
 }
 
-func (m *mockWsClient) SubscribeCandle(ctx context.Context, coin string, interval string, ch chan ws.CandleMessage) (ws.Subscription, error) {
+func (m *mockWsClient) SubscribeCandle(ctx context.Context, coin string, interval string, ch chan<- ws.CandleMessage) (ws.Subscription, error) {
 	if m.subscribeCandleFunc != nil {
 		return m.subscribeCandleFunc(ctx, coin, interval, ch)
 	}
 	return nil, nil
 }
 
-func (m *mockWsClient) SubscribeBbo(ctx context.Context, coin string, ch chan ws.BboMessage) (ws.Subscription, error) {
+func (m *mockWsClient) SubscribeBbo(ctx context.Context, coin string, ch chan<- ws.BboMessage) (ws.Subscription, error) {
 	if m.subscribeBboFunc != nil {
 		return m.subscribeBboFunc(ctx, coin, ch)
 	}
 	return nil, nil
 }
 
-func (m *mockWsClient) SubscribeActiveAssetCtx(ctx context.Context, coin string, ch chan ws.ActiveAssetCtxMessage) (ws.Subscription, error) {
+func (m *mockWsClient) SubscribeActiveAssetCtx(ctx context.Context, coin string, ch chan<- ws.ActiveAssetCtxMessage) (ws.Subscription, error) {
 	if m.subscribeActiveAssetCtxFunc != nil {
 		return m.subscribeActiveAssetCtxFunc(ctx, coin, ch)
 	}
 	return nil, nil
 }
 
-func (m *mockWsClient) SubscribeUserEvents(ctx context.Context, user string, ch chan ws.UserEventsMessage) (ws.Subscription, error) {
+func (m *mockWsClient) SubscribeUserEvents(ctx context.Context, user string, ch chan<- ws.UserEventsMessage) (ws.Subscription, error) {
 	if m.subscribeUserEventsFunc != nil {
 		return m.subscribeUserEventsFunc(ctx, user, ch)
 	}
 	return nil, nil
 }
 
-func (m *mockWsClient) SubscribeUserFills(ctx context.Context, user string, ch chan ws.UserFillsMessage) (ws.Subscription, error) {
+func (m *mockWsClient) SubscribeUserFills(ctx context.Context, user string, ch chan<- ws.UserFillsMessage) (ws.Subscription, error) {
 	if m.subscribeUserFillsFunc != nil {
 		return m.subscribeUserFillsFunc(ctx, user, ch)
 	}
 	return nil, nil
 }
 
-func (m *mockWsClient) SubscribeOrderUpdates(ctx context.Context, user string, ch chan ws.OrderUpdatesMessage) (ws.Subscription, error) {
+func (m *mockWsClient) SubscribeOrderUpdates(ctx context.Context, user string, ch chan<- ws.OrderUpdatesMessage) (ws.Subscription, error) {
 	if m.subscribeOrderUpdatesFunc != nil {
 		return m.subscribeOrderUpdatesFunc(ctx, user, ch)
 	}
@@ -577,7 +577,7 @@ func TestSubscribeAllMidsNoWS(t *testing.T) {
 
 func TestSubscribeAllMidsSuccess(t *testing.T) {
 	mockWS := &mockWsClient{
-		subscribeAllMidsFunc: func(ctx context.Context, ch chan ws.AllMidsMessage) (ws.Subscription, error) {
+		subscribeAllMidsFunc: func(ctx context.Context, ch chan<- ws.AllMidsMessage) (ws.Subscription, error) {
 			return &mockSubscription{}, nil
 		},
 	}
@@ -597,7 +597,7 @@ func TestSubscribeAllMidsSuccess(t *testing.T) {
 
 func TestSubscribeL2BookSuccess(t *testing.T) {
 	mockWS := &mockWsClient{
-		subscribeL2BookFunc: func(ctx context.Context, coin string, ch chan ws.L2BookMessage) (ws.Subscription, error) {
+		subscribeL2BookFunc: func(ctx context.Context, coin string, ch chan<- ws.L2BookMessage) (ws.Subscription, error) {
 			if coin != "BTC" {
 				t.Errorf("expected coin BTC, got %s", coin)
 			}
@@ -623,7 +623,7 @@ func TestSubscribeL2BookSuccess(t *testing.T) {
 
 func TestSubscribeTradesSuccess(t *testing.T) {
 	mockWS := &mockWsClient{
-		subscribeTradesFunc: func(ctx context.Context, coin string, ch chan ws.TradesMessage) (ws.Subscription, error) {
+		subscribeTradesFunc: func(ctx context.Context, coin string, ch chan<- ws.TradesMessage) (ws.Subscription, error) {
 			return &mockSubscription{}, nil
 		},
 	}
@@ -646,7 +646,7 @@ func TestSubscribeTradesSuccess(t *testing.T) {
 
 func TestSubscribeCandleSuccess(t *testing.T) {
 	mockWS := &mockWsClient{
-		subscribeCandleFunc: func(ctx context.Context, coin string, interval string, ch chan ws.CandleMessage) (ws.Subscription, error) {
+		subscribeCandleFunc: func(ctx context.Context, coin string, interval string, ch chan<- ws.CandleMessage) (ws.Subscription, error) {
 			if interval != "1h" {
 				t.Errorf("expected interval 1h, got %s", interval)
 			}
@@ -672,7 +672,7 @@ func TestSubscribeCandleSuccess(t *testing.T) {
 
 func TestSubscribeBboSuccess(t *testing.T) {
 	mockWS := &mockWsClient{
-		subscribeBboFunc: func(ctx context.Context, coin string, ch chan ws.BboMessage) (ws.Subscription, error) {
+		subscribeBboFunc: func(ctx context.Context, coin string, ch chan<- ws.BboMessage) (ws.Subscription, error) {
 			return &mockSubscription{}, nil
 		},
 	}
@@ -695,7 +695,7 @@ func TestSubscribeBboSuccess(t *testing.T) {
 
 func TestSubscribeActiveAssetCtxSuccess(t *testing.T) {
 	mockWS := &mockWsClient{
-		subscribeActiveAssetCtxFunc: func(ctx context.Context, coin string, ch chan ws.ActiveAssetCtxMessage) (ws.Subscription, error) {
+		subscribeActiveAssetCtxFunc: func(ctx context.Context, coin string, ch chan<- ws.ActiveAssetCtxMessage) (ws.Subscription, error) {
 			return &mockSubscription{}, nil
 		},
 	}
@@ -718,7 +718,7 @@ func TestSubscribeActiveAssetCtxSuccess(t *testing.T) {
 
 func TestSubscribeUserEventsSuccess(t *testing.T) {
 	mockWS := &mockWsClient{
-		subscribeUserEventsFunc: func(ctx context.Context, user string, ch chan ws.UserEventsMessage) (ws.Subscription, error) {
+		subscribeUserEventsFunc: func(ctx context.Context, user string, ch chan<- ws.UserEventsMessage) (ws.Subscription, error) {
 			if user != "0x123" {
 				t.Errorf("expected user 0x123, got %s", user)
 			}
@@ -741,7 +741,7 @@ func TestSubscribeUserEventsSuccess(t *testing.T) {
 
 func TestSubscribeUserFillsSuccess(t *testing.T) {
 	mockWS := &mockWsClient{
-		subscribeUserFillsFunc: func(ctx context.Context, user string, ch chan ws.UserFillsMessage) (ws.Subscription, error) {
+		subscribeUserFillsFunc: func(ctx context.Context, user string, ch chan<- ws.UserFillsMessage) (ws.Subscription, error) {
 			return &mockSubscription{}, nil
 		},
 	}
@@ -761,7 +761,7 @@ func TestSubscribeUserFillsSuccess(t *testing.T) {
 
 func TestSubscribeOrderUpdatesSuccess(t *testing.T) {
 	mockWS := &mockWsClient{
-		subscribeOrderUpdatesFunc: func(ctx context.Context, user string, ch chan ws.OrderUpdatesMessage) (ws.Subscription, error) {
+		subscribeOrderUpdatesFunc: func(ctx context.Context, user string, ch chan<- ws.OrderUpdatesMessage) (ws.Subscription, error) {
 			return &mockSubscription{}, nil
 		},
 	}
