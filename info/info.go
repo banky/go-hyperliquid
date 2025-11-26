@@ -347,7 +347,10 @@ func (i *Info) UserFees(ctx context.Context, address string) (any, error) {
 // ===== WebSocket Subscriptions =====
 
 // SubscribeAllMids subscribes to all mid-prices
-func (i *Info) SubscribeAllMids(ctx context.Context, ch chan ws.AllMidsMessage) (ws.Subscription, error) {
+func (i *Info) SubscribeAllMids(
+	ctx context.Context,
+	ch chan<- ws.AllMidsMessage,
+) (ws.Subscription, error) {
 	if i.ws == nil {
 		return nil, fmt.Errorf("websocket not initialized")
 	}
@@ -355,7 +358,11 @@ func (i *Info) SubscribeAllMids(ctx context.Context, ch chan ws.AllMidsMessage) 
 }
 
 // SubscribeL2Book subscribes to level 2 order book for a coin
-func (i *Info) SubscribeL2Book(ctx context.Context, name string, ch chan ws.L2BookMessage) (ws.Subscription, error) {
+func (i *Info) SubscribeL2Book(
+	ctx context.Context,
+	name string,
+	ch chan<- ws.L2BookMessage,
+) (ws.Subscription, error) {
 	if i.ws == nil {
 		return nil, fmt.Errorf("websocket not initialized")
 	}
@@ -367,7 +374,11 @@ func (i *Info) SubscribeL2Book(ctx context.Context, name string, ch chan ws.L2Bo
 }
 
 // SubscribeTrades subscribes to trades for a coin
-func (i *Info) SubscribeTrades(ctx context.Context, name string, ch chan ws.TradesMessage) (ws.Subscription, error) {
+func (i *Info) SubscribeTrades(
+	ctx context.Context,
+	name string,
+	ch chan<- ws.TradesMessage,
+) (ws.Subscription, error) {
 	if i.ws == nil {
 		return nil, fmt.Errorf("websocket not initialized")
 	}
@@ -379,7 +390,12 @@ func (i *Info) SubscribeTrades(ctx context.Context, name string, ch chan ws.Trad
 }
 
 // SubscribeCandle subscribes to candle data
-func (i *Info) SubscribeCandle(ctx context.Context, name string, interval string, ch chan ws.CandleMessage) (ws.Subscription, error) {
+func (i *Info) SubscribeCandle(
+	ctx context.Context,
+	name string,
+	interval string,
+	ch chan<- ws.CandleMessage,
+) (ws.Subscription, error) {
 	if i.ws == nil {
 		return nil, fmt.Errorf("websocket not initialized")
 	}
@@ -391,7 +407,11 @@ func (i *Info) SubscribeCandle(ctx context.Context, name string, interval string
 }
 
 // SubscribeBbo subscribes to best bid/offer data
-func (i *Info) SubscribeBbo(ctx context.Context, name string, ch chan ws.BboMessage) (ws.Subscription, error) {
+func (i *Info) SubscribeBbo(
+	ctx context.Context,
+	name string,
+	ch chan<- ws.BboMessage,
+) (ws.Subscription, error) {
 	if i.ws == nil {
 		return nil, fmt.Errorf("websocket not initialized")
 	}
@@ -403,7 +423,11 @@ func (i *Info) SubscribeBbo(ctx context.Context, name string, ch chan ws.BboMess
 }
 
 // SubscribeActiveAssetCtx subscribes to active asset context
-func (i *Info) SubscribeActiveAssetCtx(ctx context.Context, name string, ch chan ws.ActiveAssetCtxMessage) (ws.Subscription, error) {
+func (i *Info) SubscribeActiveAssetCtx(
+	ctx context.Context,
+	name string,
+	ch chan<- ws.ActiveAssetCtxMessage,
+) (ws.Subscription, error) {
 	if i.ws == nil {
 		return nil, fmt.Errorf("websocket not initialized")
 	}
@@ -415,7 +439,11 @@ func (i *Info) SubscribeActiveAssetCtx(ctx context.Context, name string, ch chan
 }
 
 // SubscribeUserEvents subscribes to user events
-func (i *Info) SubscribeUserEvents(ctx context.Context, user string, ch chan ws.UserEventsMessage) (ws.Subscription, error) {
+func (i *Info) SubscribeUserEvents(
+	ctx context.Context,
+	user string,
+	ch chan<- ws.UserEventsMessage,
+) (ws.Subscription, error) {
 	if i.ws == nil {
 		return nil, fmt.Errorf("websocket not initialized")
 	}
@@ -423,7 +451,11 @@ func (i *Info) SubscribeUserEvents(ctx context.Context, user string, ch chan ws.
 }
 
 // SubscribeUserFills subscribes to user fills
-func (i *Info) SubscribeUserFills(ctx context.Context, user string, ch chan ws.UserFillsMessage) (ws.Subscription, error) {
+func (i *Info) SubscribeUserFills(
+	ctx context.Context,
+	user string,
+	ch chan<- ws.UserFillsMessage,
+) (ws.Subscription, error) {
 	if i.ws == nil {
 		return nil, fmt.Errorf("websocket not initialized")
 	}
@@ -431,7 +463,11 @@ func (i *Info) SubscribeUserFills(ctx context.Context, user string, ch chan ws.U
 }
 
 // SubscribeOrderUpdates subscribes to order updates
-func (i *Info) SubscribeOrderUpdates(ctx context.Context, user string, ch chan ws.OrderUpdatesMessage) (ws.Subscription, error) {
+func (i *Info) SubscribeOrderUpdates(
+	ctx context.Context,
+	user string,
+	ch chan<- ws.OrderUpdatesMessage,
+) (ws.Subscription, error) {
 	if i.ws == nil {
 		return nil, fmt.Errorf("websocket not initialized")
 	}

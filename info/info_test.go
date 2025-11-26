@@ -3,6 +3,7 @@ package info
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 	"time"
 
@@ -883,6 +884,7 @@ func TestPullRealData(t *testing.T) {
 	for {
 		select {
 		case <-midsChan:
+			fmt.Println("Got mid")
 			messageCount++
 			if messageCount >= 3 {
 				return
