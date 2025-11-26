@@ -1,6 +1,7 @@
 package rest
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -24,8 +25,8 @@ func TestPostSuccess(t *testing.T) {
 	defer server.Close()
 
 	client := New(Config{BaseUrl: server.URL})
-	result, err := Post[testResponse](client, "/test", testRequest{Name: "test"})
-
+	var result testResponse
+	err := client.Post(context.Background(), "/test", testRequest{Name: "test"}, &result)
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
@@ -48,7 +49,8 @@ func TestPostClientErrorWithJSON(t *testing.T) {
 	defer server.Close()
 
 	client := New(Config{BaseUrl: server.URL})
-	_, err := Post[testResponse](client, "/test", testRequest{Name: ""})
+	var result testResponse
+	err := client.Post(context.Background(), "/test", testRequest{Name: ""}, &result)
 
 	if err == nil {
 		t.Fatal("expected error, got nil")
@@ -84,7 +86,8 @@ func TestPostClientErrorWithoutJSON(t *testing.T) {
 	defer server.Close()
 
 	client := New(Config{BaseUrl: server.URL})
-	_, err := Post[testResponse](client, "/test", testRequest{Name: "test"})
+	var result testResponse
+	err := client.Post(context.Background(), "/test", testRequest{Name: "test"}, &result)
 
 	if err == nil {
 		t.Fatal("expected error, got nil")
@@ -112,7 +115,8 @@ func TestPostServerError(t *testing.T) {
 	defer server.Close()
 
 	client := New(Config{BaseUrl: server.URL})
-	_, err := Post[testResponse](client, "/test", testRequest{Name: "test"})
+	var result testResponse
+	err := client.Post(context.Background(), "/test", testRequest{Name: "test"}, &result)
 
 	if err == nil {
 		t.Fatal("expected error, got nil")
@@ -141,7 +145,8 @@ func TestPostWithTimeout(t *testing.T) {
 
 	// Create client with 5 second timeout (more than enough for fast server)
 	client := New(Config{BaseUrl: server.URL, Timeout: 5})
-	result, err := Post[testResponse](client, "/test", testRequest{Name: "test"})
+	var result testResponse
+	err := client.Post(context.Background(), "/test", testRequest{Name: "test"}, &result)
 
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)

@@ -17,6 +17,11 @@ type Client struct {
 	timeout mo.Option[uint]
 }
 
+// ClientInterface defines the contract for REST API calls
+type ClientInterface interface {
+	Post(ctx context.Context, path string, body any, result any) error
+}
+
 type Config struct {
 	// BaseUrl is the base URL for the Hyperliquid API
 	// If none is provided, the mainnet url will be used
@@ -28,7 +33,7 @@ type Config struct {
 
 // New creates a new client instance with the
 // provided configuration.
-func New(c Config) Client {
+func New(c Config) *Client {
 	var baseUrl string = c.BaseUrl
 	var timeout mo.Option[uint]
 
@@ -39,26 +44,30 @@ func New(c Config) Client {
 		timeout = mo.Some(c.Timeout)
 	}
 
-	return Client{
+	client := &Client{
 		baseUrl: baseUrl,
 		timeout: timeout,
 	}
+
+	return client
 }
 
 // Post sends a POST request to the specified path with the provided body.
-func Post[Resp any](client Client, path string, body any) (Resp, error) {
-	var result Resp
-
+func (c *Client) Post(
+	ctx context.Context,
+	path string,
+	body any,
+	result any,
+) error {
 	r := resty.
 		New().
 		SetJSONMarshaler(json.Marshal).
 		SetJSONUnmarshaler(json.Unmarshal)
 
-	url := client.baseUrl + path
+	url := c.baseUrl + path
 
-	// Create context with timeout if specified
-	ctx := context.Background()
-	if timeout, ok := client.timeout.Get(); ok {
+	// Apply timeout to context if specified
+	if timeout, ok := c.timeout.Get(); ok {
 		var cancel context.CancelFunc
 		ctx, cancel = context.WithTimeout(ctx, time.Duration(timeout)*time.Second)
 		defer cancel()
@@ -72,12 +81,12 @@ func Post[Resp any](client Client, path string, body any) (Resp, error) {
 		Post(url)
 
 	if err != nil {
-		return result, err
+		return err
 	}
 
 	if err := handleException(resp); err != nil {
-		return result, err
+		return err
 	}
 
-	return result, nil
+	return nil
 }

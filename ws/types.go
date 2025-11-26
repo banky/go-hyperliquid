@@ -7,8 +7,8 @@ import (
 
 // ===== Subscription Types =====
 
-// Subscription interface defines the contract for all subscription types
-type Subscription interface {
+// SubscriptionType interface defines the contract for all subscription type configurations
+type SubscriptionType interface {
 	channelName() string
 	identifier() string
 	subscriptionPayload() any
@@ -62,6 +62,7 @@ func (s UserEventsSubscription) subscriptionPayload() any {
 
 // UserFillsSubscription subscribes to user fills
 type UserFillsSubscription struct {
+	// TODO: Is this an Address?
 	User string
 }
 

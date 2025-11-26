@@ -6,7 +6,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
-	"sync"
 	"testing"
 	"time"
 
@@ -18,7 +17,7 @@ import (
 func TestSubscriptionIdentifiers(t *testing.T) {
 	tests := []struct {
 		name       string
-		sub        Subscription
+		sub        SubscriptionType
 		expectedID string
 	}{
 		{
@@ -139,17 +138,17 @@ func (s *mockWSServer) close() {
 	s.server.Close()
 }
 
-// ===== Manager Lifecycle Tests =====
+// ===== Client Lifecycle Tests =====
 
-func TestManagerStartStop(t *testing.T) {
+func TestClientStartStop(t *testing.T) {
 	server := newMockWSServer(t)
 	defer server.close()
 
-	manager := New(server.url)
+	client := New(server.url)
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	err := manager.Start(ctx)
+	err := client.Start(ctx)
 	if err != nil {
 		t.Fatalf("Start() failed: %v", err)
 	}
@@ -157,85 +156,88 @@ func TestManagerStartStop(t *testing.T) {
 	// Give it time to process the connection message
 	time.Sleep(100 * time.Millisecond)
 
-	manager.Stop()
+	client.Stop()
 }
 
-// ===== Subscription Queue Tests =====
+// ===== Channel-Based Subscription Tests =====
 
-func TestQueuedSubscriptions(t *testing.T) {
+func TestChannelSubscription(t *testing.T) {
 	server := newMockWSServer(t)
 	defer server.close()
 
-	manager := New(server.url)
-
-	// Subscribe before connection is ready
-	id := manager.SubscribeAllMids(func(msg *AllMidsMessage) {})
-
-	if id != 1 {
-		t.Errorf("expected subscription ID 1, got %d", id)
-	}
-
-	// Should be queued, not active yet
-	manager.mu.RLock()
-	if len(manager.activeSubscriptions["allMids"]) != 0 {
-		t.Error("expected no active subscriptions before connection")
-	}
-	if len(manager.queuedSubscriptions) != 1 {
-		t.Error("expected 1 queued subscription")
-	}
-	manager.mu.RUnlock()
-
-	// Now connect
+	client := New(server.url)
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	err := manager.Start(ctx)
-	cancel()
+	defer cancel()
+
+	err := client.Start(ctx)
 	if err != nil {
 		t.Fatalf("Start() failed: %v", err)
 	}
 
-	// Give it time to process queued subscriptions
 	time.Sleep(100 * time.Millisecond)
 
-	// Check that subscription was processed
-	manager.mu.RLock()
-	if len(manager.activeSubscriptions["allMids"]) != 1 {
-		t.Error("expected 1 active subscription after connection")
+	// Subscribe to AllMids with a channel
+	msgChan := make(chan AllMidsMessage)
+	sub, err := client.SubscribeAllMids(ctx, msgChan)
+	if err != nil {
+		t.Fatalf("SubscribeAllMids() failed: %v", err)
 	}
-	if len(manager.queuedSubscriptions) != 0 {
-		t.Error("expected 0 queued subscriptions after connection")
+	if sub == nil {
+		t.Fatal("expected non-nil subscription")
 	}
-	manager.mu.RUnlock()
 
-	manager.Stop()
+	time.Sleep(100 * time.Millisecond)
+
+	// Check that subscription is active
+	client.mu.RLock()
+	if len(client.activeSubscriptions["allMids"]) != 1 {
+		t.Error("expected 1 active allMids subscription")
+	}
+	client.mu.RUnlock()
+
+	// Unsubscribe
+	sub.Unsubscribe()
+
+	time.Sleep(50 * time.Millisecond)
+
+	// Check that subscription is gone
+	client.mu.RLock()
+	if len(client.activeSubscriptions["allMids"]) != 0 {
+		t.Error("expected 0 active allMids subscriptions after unsubscribe")
+	}
+	client.mu.RUnlock()
+
+	client.Stop()
 }
 
 // ===== Message Routing Tests =====
 
 func TestL2BookMessageRouting(t *testing.T) {
-	server := newMockWSServer(t)
-	defer server.close()
+	// Focus on testing message routing logic with predictable setup
+	client := New("http://localhost:8000") // URL doesn't matter, won't connect
 
-	// Start manager with custom message handler
-	manager := New(server.url)
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	err := manager.Start(ctx)
-	cancel()
-	if err != nil {
-		t.Fatalf("Start() failed: %v", err)
-	}
+	// Create subscriber channel
+	msgChan := make(chan L2BookMessage)
 
-	time.Sleep(100 * time.Millisecond)
+	// Manually set up subscription to test routing (bypasses WebSocket connection requirement)
+	id := 1
+	sub := L2BookSubscription{Coin: "BTC"}
+	identifier := sub.identifier()
 
-	// Subscribe to L2 book
-	var received *L2BookMessage
-	var mu sync.Mutex
-	manager.SubscribeL2Book("BTC", func(msg *L2BookMessage) {
-		mu.Lock()
-		received = msg
-		mu.Unlock()
+	// Create internal buffered channel (as subscribe() does)
+	internalChan := make(chan any, 10)
+	client.mu.Lock()
+	client.activeSubscriptions[identifier] = append(client.activeSubscriptions[identifier], &channelSubscription{
+		internalChan: internalChan,
+		id:           id,
 	})
+	client.mu.Unlock()
 
-	time.Sleep(100 * time.Millisecond)
+	// Launch real delivery goroutine (not mocked)
+	go client.deliveryLoop(internalChan, msgChan)
+
+	// Give delivery goroutine time to start
+	time.Sleep(10 * time.Millisecond)
 
 	// Manually inject a message for testing
 	msgData := map[string]any{
@@ -262,49 +264,48 @@ func TestL2BookMessageRouting(t *testing.T) {
 		},
 	}
 	msgBytes, _ := json.Marshal(msgData)
-	manager.handleMessage(msgBytes)
+	client.handleMessage(msgBytes)
 
-	// Wait for async callback
-	time.Sleep(50 * time.Millisecond)
-
-	mu.Lock()
-	if received == nil {
-		t.Fatal("callback not called")
+	// Receive message from channel
+	select {
+	case received := <-msgChan:
+		if received.Coin != "BTC" {
+			t.Errorf("expected coin BTC, got %s", received.Coin)
+		}
+		if received.Time != 1234567890 {
+			t.Errorf("expected time 1234567890, got %d", received.Time)
+		}
+	case <-time.After(1 * time.Second):
+		t.Fatal("timeout waiting for message")
 	}
-	if received.Coin != "BTC" {
-		t.Errorf("expected coin BTC, got %s", received.Coin)
-	}
-	if received.Time != 1234567890 {
-		t.Errorf("expected time 1234567890, got %d", received.Time)
-	}
-	mu.Unlock()
-
-	manager.Stop()
 }
 
 func TestTradesMessageRouting(t *testing.T) {
-	server := newMockWSServer(t)
-	defer server.close()
+	// Focus on testing message routing logic with predictable setup
+	client := New("http://localhost:8000") // URL doesn't matter, won't connect
 
-	manager := New(server.url)
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	err := manager.Start(ctx)
-	cancel()
-	if err != nil {
-		t.Fatalf("Start() failed: %v", err)
-	}
+	// Create subscriber channel
+	msgChan := make(chan TradesMessage)
 
-	time.Sleep(100 * time.Millisecond)
+	// Manually set up subscription to test routing (bypasses WebSocket connection requirement)
+	id := 1
+	sub := TradesSubscription{Coin: "ETH"}
+	identifier := sub.identifier()
 
-	var received *TradesMessage
-	var mu sync.Mutex
-	manager.SubscribeTrades("ETH", func(msg *TradesMessage) {
-		mu.Lock()
-		received = msg
-		mu.Unlock()
+	// Create internal buffered channel (as subscribe() does)
+	internalChan := make(chan any, 10)
+	client.mu.Lock()
+	client.activeSubscriptions[identifier] = append(client.activeSubscriptions[identifier], &channelSubscription{
+		internalChan: internalChan,
+		id:           id,
 	})
+	client.mu.Unlock()
 
-	time.Sleep(100 * time.Millisecond)
+	// Launch real delivery goroutine (not mocked)
+	go client.deliveryLoop(internalChan, msgChan)
+
+	// Give delivery goroutine time to start
+	time.Sleep(10 * time.Millisecond)
 
 	msgData := map[string]any{
 		"channel": "trades",
@@ -328,23 +329,19 @@ func TestTradesMessageRouting(t *testing.T) {
 		},
 	}
 	msgBytes, _ := json.Marshal(msgData)
-	manager.handleMessage(msgBytes)
+	client.handleMessage(msgBytes)
 
-	time.Sleep(50 * time.Millisecond)
-
-	mu.Lock()
-	if received == nil {
-		t.Fatal("callback not called")
+	select {
+	case received := <-msgChan:
+		if len(received.Trades) != 2 {
+			t.Errorf("expected 2 trades, got %d", len(received.Trades))
+		}
+		if received.Trades[0].Coin != "ETH" {
+			t.Errorf("expected coin ETH, got %s", received.Trades[0].Coin)
+		}
+	case <-time.After(1 * time.Second):
+		t.Fatal("timeout waiting for message")
 	}
-	if len(received.Trades) != 2 {
-		t.Errorf("expected 2 trades, got %d", len(received.Trades))
-	}
-	if received.Trades[0].Coin != "ETH" {
-		t.Errorf("expected coin ETH, got %s", received.Trades[0].Coin)
-	}
-	mu.Unlock()
-
-	manager.Stop()
 }
 
 // ===== Multiplexing Constraint Tests =====
@@ -353,9 +350,9 @@ func TestUserEventsDuplicateSubscription(t *testing.T) {
 	server := newMockWSServer(t)
 	defer server.close()
 
-	manager := New(server.url)
+	client := New(server.url)
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	err := manager.Start(ctx)
+	err := client.Start(ctx)
 	cancel()
 	if err != nil {
 		t.Fatalf("Start() failed: %v", err)
@@ -364,29 +361,34 @@ func TestUserEventsDuplicateSubscription(t *testing.T) {
 	time.Sleep(100 * time.Millisecond)
 
 	// First subscription should work
-	id1 := manager.SubscribeUserEvents("0xABC", func(msg *UserEventsMessage) {})
-	if id1 == 0 {
-		t.Error("expected valid subscription ID")
+	msgChan1 := make(chan UserEventsMessage)
+	sub1, err := client.SubscribeUserEvents(context.Background(), "0xABC", msgChan1)
+	if err != nil {
+		t.Fatalf("first SubscribeUserEvents() failed: %v", err)
 	}
+	defer sub1.Unsubscribe()
 
 	time.Sleep(100 * time.Millisecond)
 
-	// Second subscription to same identifier should fail
-	// (manager won't add it)
-	id2 := manager.SubscribeUserEvents("0xDEF", func(msg *UserEventsMessage) {})
-	if id2 == 0 {
-		t.Error("expected valid subscription ID")
+	// Second subscription to same channel (userEvents) should fail
+	// because userEvents only allows one subscription
+	msgChan2 := make(chan UserEventsMessage)
+	sub2, err := client.SubscribeUserEvents(context.Background(), "0xDEF", msgChan2)
+	if err == nil {
+		// If it succeeded, that's an error - userEvents should only allow 1
+		sub2.Unsubscribe()
+		t.Error("expected second userEvents subscription to fail")
 	}
 
-	manager.mu.RLock()
-	count := len(manager.activeSubscriptions["userEvents"])
-	manager.mu.RUnlock()
+	client.mu.RLock()
+	count := len(client.activeSubscriptions["userEvents"])
+	client.mu.RUnlock()
 
 	if count != 1 {
 		t.Errorf("expected 1 active userEvents subscription, got %d", count)
 	}
 
-	manager.Stop()
+	client.Stop()
 }
 
 // ===== Add/Remove Subscription Tests =====
@@ -395,9 +397,9 @@ func TestUnsubscribe(t *testing.T) {
 	server := newMockWSServer(t)
 	defer server.close()
 
-	manager := New(server.url)
+	client := New(server.url)
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	err := manager.Start(ctx)
+	err := client.Start(ctx)
 	cancel()
 	if err != nil {
 		t.Fatalf("Start() failed: %v", err)
@@ -406,83 +408,100 @@ func TestUnsubscribe(t *testing.T) {
 	time.Sleep(100 * time.Millisecond)
 
 	// Subscribe to multiple coins
-	id1 := manager.SubscribeL2Book("BTC", func(msg *L2BookMessage) {})
-	_ = manager.SubscribeL2Book("BTC", func(msg *L2BookMessage) {})
-	_ = manager.SubscribeL2Book("ETH", func(msg *L2BookMessage) {})
+	msgChan1 := make(chan L2BookMessage)
+	sub1, err := client.SubscribeL2Book(context.Background(), "BTC", msgChan1)
+	if err != nil {
+		t.Fatalf("SubscribeL2Book BTC #1 failed: %v", err)
+	}
+
+	msgChan2 := make(chan L2BookMessage)
+	sub2, err := client.SubscribeL2Book(context.Background(), "BTC", msgChan2)
+	if err != nil {
+		t.Fatalf("SubscribeL2Book BTC #2 failed: %v", err)
+	}
+
+	msgChan3 := make(chan L2BookMessage)
+	sub3, err := client.SubscribeL2Book(context.Background(), "ETH", msgChan3)
+	if err != nil {
+		t.Fatalf("SubscribeL2Book ETH failed: %v", err)
+	}
 
 	time.Sleep(100 * time.Millisecond)
 
 	// Check initial state
-	manager.mu.RLock()
-	btcSubs := len(manager.activeSubscriptions["l2Book:btc"])
-	manager.mu.RUnlock()
+	client.mu.RLock()
+	btcSubs := len(client.activeSubscriptions["l2Book:btc"])
+	client.mu.RUnlock()
 
 	if btcSubs != 2 {
 		t.Errorf("expected 2 BTC subscriptions, got %d", btcSubs)
 	}
 
 	// Unsubscribe from one BTC subscription
-	found := manager.Unsubscribe(L2BookSubscription{Coin: "BTC"}, id1)
-	if !found {
-		t.Error("expected unsubscribe to find subscription")
-	}
+	sub1.Unsubscribe()
 
 	time.Sleep(50 * time.Millisecond)
 
 	// Check that one was removed
-	manager.mu.RLock()
-	btcSubs = len(manager.activeSubscriptions["l2Book:btc"])
-	manager.mu.RUnlock()
+	client.mu.RLock()
+	btcSubs = len(client.activeSubscriptions["l2Book:btc"])
+	client.mu.RUnlock()
 
 	if btcSubs != 1 {
 		t.Errorf("expected 1 BTC subscription after unsubscribe, got %d", btcSubs)
 	}
 
 	// ETH should be unaffected
-	manager.mu.RLock()
-	ethSubs := len(manager.activeSubscriptions["l2Book:eth"])
-	manager.mu.RUnlock()
+	client.mu.RLock()
+	ethSubs := len(client.activeSubscriptions["l2Book:eth"])
+	client.mu.RUnlock()
 
 	if ethSubs != 1 {
 		t.Errorf("expected 1 ETH subscription, got %d", ethSubs)
 	}
 
-	manager.Stop()
+	sub2.Unsubscribe()
+	sub3.Unsubscribe()
+	client.Stop()
 }
 
-// ===== Multiple Callbacks Per Subscription =====
+// ===== Multiple Subscriptions Per Channel =====
 
-func TestMultipleCallbacksPerSubscription(t *testing.T) {
-	server := newMockWSServer(t)
-	defer server.close()
+func TestMultipleSubscriptionsPerChannel(t *testing.T) {
+	// Test that multiple subscriptions receive the same message
+	client := New("http://localhost:8000") // URL doesn't matter, won't connect
 
-	manager := New(server.url)
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	err := manager.Start(ctx)
-	cancel()
-	if err != nil {
-		t.Fatalf("Start() failed: %v", err)
-	}
+	// Create subscriber channels
+	msgChan1 := make(chan L2BookMessage)
+	msgChan2 := make(chan L2BookMessage)
 
-	time.Sleep(100 * time.Millisecond)
+	// Manually set up both subscriptions
+	id1 := 1
+	id2 := 2
+	sub := L2BookSubscription{Coin: "BTC"}
+	identifier := sub.identifier()
 
-	var called1, called2 bool
-	var mu sync.Mutex
+	// Create internal buffered channels (as subscribe() does)
+	internalChan1 := make(chan any, 10)
+	internalChan2 := make(chan any, 10)
 
-	// Multiple callbacks for same coin
-	manager.SubscribeL2Book("BTC", func(msg *L2BookMessage) {
-		mu.Lock()
-		called1 = true
-		mu.Unlock()
+	client.mu.Lock()
+	client.activeSubscriptions[identifier] = append(client.activeSubscriptions[identifier], &channelSubscription{
+		internalChan: internalChan1,
+		id:           id1,
 	})
-
-	manager.SubscribeL2Book("BTC", func(msg *L2BookMessage) {
-		mu.Lock()
-		called2 = true
-		mu.Unlock()
+	client.activeSubscriptions[identifier] = append(client.activeSubscriptions[identifier], &channelSubscription{
+		internalChan: internalChan2,
+		id:           id2,
 	})
+	client.mu.Unlock()
 
-	time.Sleep(100 * time.Millisecond)
+	// Launch real delivery goroutines (not mocked)
+	go client.deliveryLoop(internalChan1, msgChan1)
+	go client.deliveryLoop(internalChan2, msgChan2)
+
+	// Give delivery goroutines time to start
+	time.Sleep(50 * time.Millisecond)
 
 	// Send message
 	msgData := map[string]any{
@@ -497,17 +516,27 @@ func TestMultipleCallbacksPerSubscription(t *testing.T) {
 		},
 	}
 	msgBytes, _ := json.Marshal(msgData)
-	manager.handleMessage(msgBytes)
+	client.handleMessage(msgBytes)
 
-	time.Sleep(100 * time.Millisecond)
+	// Both channels should receive the message concurrently
+	received1 := false
+	received2 := false
 
-	mu.Lock()
-	if !called1 || !called2 {
-		t.Errorf("both callbacks should be called: called1=%v, called2=%v", called1, called2)
+	timeout := time.After(100 * time.Millisecond)
+	for i := range 2 {
+		select {
+		case <-msgChan1:
+			received1 = true
+		case <-msgChan2:
+			received2 = true
+		case <-timeout:
+			t.Errorf("timeout waiting for message (%d of 2)", i+1)
+		}
 	}
-	mu.Unlock()
 
-	manager.Stop()
+	if !received1 || !received2 {
+		t.Errorf("both subscriptions should receive message: received1=%v, received2=%v", received1, received2)
+	}
 }
 
 // ===== Edge Cases =====
@@ -516,9 +545,9 @@ func TestEmptyTradesMessage(t *testing.T) {
 	server := newMockWSServer(t)
 	defer server.close()
 
-	manager := New(server.url)
+	client := New(server.url)
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	err := manager.Start(ctx)
+	err := client.Start(ctx)
 	cancel()
 	if err != nil {
 		t.Fatalf("Start() failed: %v", err)
@@ -526,37 +555,41 @@ func TestEmptyTradesMessage(t *testing.T) {
 
 	time.Sleep(100 * time.Millisecond)
 
-	var callCount int
-	manager.SubscribeTrades("ETH", func(msg *TradesMessage) {
-		callCount++
-	})
+	msgChan := make(chan TradesMessage)
+	sub, err := client.SubscribeTrades(context.Background(), "ETH", msgChan)
+	if err != nil {
+		t.Fatalf("SubscribeTrades() failed: %v", err)
+	}
+	defer sub.Unsubscribe()
 
 	time.Sleep(100 * time.Millisecond)
 
-	// Send empty trades list - should not call callback
+	// Send empty trades list - should not send to channel
 	msgData := map[string]any{
 		"channel": "trades",
 		"data":    []any{},
 	}
 	msgBytes, _ := json.Marshal(msgData)
-	manager.handleMessage(msgBytes)
+	client.handleMessage(msgBytes)
 
-	time.Sleep(50 * time.Millisecond)
-
-	if callCount != 0 {
-		t.Errorf("expected no callback for empty trades, got %d calls", callCount)
+	// Channel should not receive anything
+	select {
+	case <-msgChan:
+		t.Error("expected no message for empty trades")
+	case <-time.After(100 * time.Millisecond):
+		// This is expected - no message for empty trades
 	}
 
-	manager.Stop()
+	client.Stop()
 }
 
 func TestMissingDataField(t *testing.T) {
 	server := newMockWSServer(t)
 	defer server.close()
 
-	manager := New(server.url)
+	client := New(server.url)
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	err := manager.Start(ctx)
+	err := client.Start(ctx)
 	cancel()
 	if err != nil {
 		t.Fatalf("Start() failed: %v", err)
@@ -564,11 +597,13 @@ func TestMissingDataField(t *testing.T) {
 
 	time.Sleep(100 * time.Millisecond)
 
-	// Subscribe but don't expect callback
-	var callCount int
-	manager.SubscribeL2Book("BTC", func(msg *L2BookMessage) {
-		callCount++
-	})
+	// Subscribe but don't expect message
+	msgChan := make(chan L2BookMessage)
+	sub, err := client.SubscribeL2Book(context.Background(), "BTC", msgChan)
+	if err != nil {
+		t.Fatalf("SubscribeL2Book() failed: %v", err)
+	}
+	defer sub.Unsubscribe()
 
 	time.Sleep(100 * time.Millisecond)
 
@@ -577,21 +612,23 @@ func TestMissingDataField(t *testing.T) {
 		"channel": "l2Book",
 	}
 	msgBytes, _ := json.Marshal(msgData)
-	manager.handleMessage(msgBytes)
+	client.handleMessage(msgBytes)
 
-	time.Sleep(50 * time.Millisecond)
-
-	if callCount != 0 {
-		t.Errorf("expected no callback for malformed message, got %d calls", callCount)
+	// Channel should not receive anything
+	select {
+	case <-msgChan:
+		t.Error("expected no message for malformed message")
+	case <-time.After(100 * time.Millisecond):
+		// This is expected - no message for malformed data
 	}
 
-	manager.Stop()
+	client.Stop()
 }
 
 func TestSubscriptionPayload(t *testing.T) {
 	tests := []struct {
 		name         string
-		sub          Subscription
+		sub          SubscriptionType
 		expectedKeys []string
 	}{
 		{
