@@ -39,6 +39,7 @@ func New(cfg Config) (*Info, error) {
 	var wsManager *ws.Client
 	if !cfg.SkipWS {
 		wsManager = ws.New(cfg.BaseURL)
+		wsManager.Start(context.Background())
 	}
 
 	info := &Info{
