@@ -1,6 +1,7 @@
 package exchange
 
 import (
+	"errors"
 	"fmt"
 	"math"
 	"strconv"
@@ -42,6 +43,23 @@ func floatToWire(x float64) (string, error) {
 	}
 
 	return formatted, nil
+}
+
+func floatToInt(x float64, power int) (int, error) {
+	withDecimals := x * math.Pow10(power)
+
+	rounded := math.Round(withDecimals)
+
+	// Equivalent to: abs(round(with_decimals) - with_decimals) >= 1e-3
+	if math.Abs(rounded-withDecimals) >= 1e-3 {
+		return 0, errors.New("float_to_int causes rounding")
+	}
+
+	return int(rounded), nil
+}
+
+func floatToUsdInt(x float64) (int, error) {
+	return floatToInt(x, 6)
 }
 
 // stringToFloat converts a string price to float64

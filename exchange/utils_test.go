@@ -320,3 +320,115 @@ func TestGetDex(t *testing.T) {
 		})
 	}
 }
+
+func TestFloatToInt(t *testing.T) {
+	tests := []struct {
+		name    string
+		x       float64
+		power   int
+		want    int
+		wantErr bool
+	}{
+		{
+			name:    "simple positive",
+			x:       12.34,
+			power:   2,
+			want:    1234,
+			wantErr: false,
+		},
+		{
+			name:    "more decimals but still safe",
+			x:       1.234567,
+			power:   6,
+			want:    1234567,
+			wantErr: false,
+		},
+		{
+			name:    "negative value",
+			x:       -1.2345,
+			power:   4,
+			want:    -12345,
+			wantErr: false,
+		},
+		{
+			name:    "large rounding required - should error",
+			x:       0.1234567, // -> 123456.7 with power=6
+			power:   6,
+			want:    0,
+			wantErr: true,
+		},
+		{
+			name:    "already integer after scaling",
+			x:       100.0,
+			power:   0,
+			want:    100,
+			wantErr: false,
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := floatToInt(tt.x, tt.power)
+			if tt.wantErr {
+				if err == nil {
+					t.Fatalf("floatToInt(%v, %d) expected error, got nil (value %v)", tt.x, tt.power, got)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("floatToInt(%v, %d) unexpected error: %v", tt.x, tt.power, err)
+			}
+			if got != tt.want {
+				t.Fatalf("floatToInt(%v, %d) = %v, want %v", tt.x, tt.power, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestFloatToUsdInt(t *testing.T) {
+	tests := []struct {
+		name    string
+		x       float64
+		want    int
+		wantErr bool
+	}{
+		{
+			name:    "exact 6 decimal places",
+			x:       12.345678, // -> 12345678
+			want:    12345678,
+			wantErr: false,
+		},
+		{
+			name:    "more than 6 decimals - should error",
+			x:       0.0000015, // -> 1.5 after scaling by 1e6
+			want:    0,
+			wantErr: true,
+		},
+		{
+			name:    "negative usd value",
+			x:       -0.123456,
+			want:    -123456,
+			wantErr: false,
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := floatToUsdInt(tt.x)
+			if tt.wantErr {
+				if err == nil {
+					t.Fatalf("floatToUsdInt(%v) expected error, got nil (value %v)", tt.x, got)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("floatToUsdInt(%v) unexpected error: %v", tt.x, err)
+			}
+			if got != tt.want {
+				t.Fatalf("floatToUsdInt(%v) = %v, want %v", tt.x, got, tt.want)
+			}
+		})
+	}
+}

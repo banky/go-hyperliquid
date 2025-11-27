@@ -3,6 +3,7 @@ package exchange
 import (
 	"encoding/binary"
 	"fmt"
+	"strconv"
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -43,10 +44,148 @@ func (e *Exchange) signL1Action(
 	return e.signHash(common.BytesToHash(hash))
 }
 
-// func (e *Exchange) signUserSignedAction(
-// 	action map[string]any,
-// 	// payload
-// )
+func (e *Exchange) signUserSignedAction(
+	action map[string]any,
+	payloadTypes []apitypes.Type,
+	primaryType string,
+) (signature, error) {
+	// signatureChainId is the chain used by the wallet to sign and can be any chain.
+	// hyperliquidChain determines the environment and prevents replaying an action on a different chain.
+
+	action["signatureChainId"] = "0x66eee"
+
+	var hyperliquidChain = "Mainnet"
+	if !e.rest.IsMainnet() {
+		hyperliquidChain = "Testnet"
+	}
+
+	action["hyperliquidChain"] = hyperliquidChain
+
+	typedData := userSignedPayload(
+		primaryType,
+		payloadTypes,
+		action,
+	)
+
+	hash, _, err := apitypes.TypedDataAndHash(typedData)
+	if err != nil {
+		return signature{}, fmt.Errorf(
+			"failed generating hash for typed data: %w",
+			err,
+		)
+	}
+
+	return e.signHash(common.BytesToHash(hash))
+}
+
+func (e *Exchange) signUsdTransferAction(
+	action map[string]any,
+) (signature, error) {
+	return e.signUserSignedAction(
+		action,
+		[]apitypes.Type{
+			{Name: "hyperliquidChain", Type: "string"},
+			{Name: "destination", Type: "string"},
+			{Name: "amount", Type: "string"},
+			{Name: "time", Type: "uint64"},
+		},
+		"HyperliquidTransaction:UsdSend",
+	)
+}
+
+func (e *Exchange) signSpotTransferAction(
+	action map[string]any,
+) (signature, error) {
+	return e.signUserSignedAction(
+		action,
+		[]apitypes.Type{
+			{Name: "hyperliquidChain", Type: "string"},
+			{Name: "destination", Type: "string"},
+			{Name: "token", Type: "string"},
+			{Name: "amount", Type: "string"},
+			{Name: "time", Type: "uint64"},
+		},
+		"HyperliquidTransaction:SpotSend",
+	)
+}
+
+func (e *Exchange) signWithdrawFromBridgeAction(
+	action map[string]any,
+) (signature, error) {
+	return e.signUserSignedAction(
+		action,
+		[]apitypes.Type{
+			{Name: "hyperliquidChain", Type: "string"},
+			{Name: "destination", Type: "string"},
+			{Name: "amount", Type: "string"},
+			{Name: "time", Type: "uint64"},
+		},
+		"HyperliquidTransaction:Withdraw",
+	)
+}
+
+func (e *Exchange) signUsdClassTransferAction(
+	action map[string]any,
+) (signature, error) {
+	return e.signUserSignedAction(
+		action,
+		[]apitypes.Type{
+			{Name: "hyperliquidChain", Type: "string"},
+			{Name: "amount", Type: "string"},
+			{Name: "toPerp", Type: "bool"},
+			{Name: "nonce", Type: "uint64"},
+		},
+		"HyperliquidTransaction:UsdClassTransfer",
+	)
+}
+
+func (e *Exchange) signSendAssetAction(
+	action map[string]any,
+) (signature, error) {
+	return e.signUserSignedAction(
+		action,
+		[]apitypes.Type{
+			{Name: "hyperliquidChain", Type: "string"},
+			{Name: "destination", Type: "string"},
+			{Name: "sourceDex", Type: "string"},
+			{Name: "destinationDex", Type: "string"},
+			{Name: "token", Type: "string"},
+			{Name: "amount", Type: "string"},
+			{Name: "fromSubAccount", Type: "string"},
+			{Name: "nonce", Type: "uint64"},
+		},
+		"HyperliquidTransaction:SendAsset",
+	)
+}
+
+func (e *Exchange) signUserDexAbstractionAction(
+	action map[string]any,
+) (signature, error) {
+	return e.signUserSignedAction(
+		action,
+		[]apitypes.Type{
+			{Name: "hyperliquidChain", Type: "string"},
+			{Name: "user", Type: "address"},
+			{Name: "enabled", Type: "bool"},
+			{Name: "nonce", Type: "uint64"},
+		},
+		"HyperliquidTransaction:UserDexAbstraction",
+	)
+}
+
+func (e *Exchange) signConvertToMultiSigUserAction(
+	action map[string]any,
+) (signature, error) {
+	return e.signUserSignedAction(
+		action,
+		[]apitypes.Type{
+			{Name: "hyperliquidChain", Type: "string"},
+			{Name: "signers", Type: "string"},
+			{Name: "nonce", Type: "uint64"},
+		},
+		"HyperliquidTransaction:ConvertToMultiSigUser",
+	)
+}
 
 // hashAction creates a Keccak256 hash of the action following the Hyperliquid protocol
 func (e *Exchange) hashAction(
@@ -152,5 +291,44 @@ func l1Payload(
 			VerifyingContract: "0x0000000000000000000000000000000000000000",
 		},
 		Message: phantomAgent,
+	}
+}
+
+func userSignedPayload(
+	primaryType string,
+	payloadTypes []apitypes.Type,
+	action apitypes.TypedDataMessage,
+) apitypes.TypedData {
+	rawChainId, ok := action["signatureChainId"].(string)
+	if !ok {
+		panic(fmt.Sprintf("signatureChainId is not a string (got %T)", action["signatureChainId"]))
+	}
+
+	chainId, err := strconv.ParseInt(rawChainId, 16, 64)
+	if err != nil {
+		panic(fmt.Sprintf("invalid hex string for chainId: %q", rawChainId))
+	}
+
+	types := apitypes.Types{
+		"EIP712Domain": {
+			{Name: "name", Type: "string"},
+			{Name: "version", Type: "string"},
+			{Name: "chainId", Type: "uint256"},
+			{Name: "verifyingContract", Type: "address"},
+		},
+	}
+
+	types[primaryType] = payloadTypes
+
+	return apitypes.TypedData{
+		Types:       types,
+		PrimaryType: primaryType,
+		Domain: apitypes.TypedDataDomain{
+			Name:              "HyperliquidSignTransaction",
+			Version:           "1",
+			ChainId:           math.NewHexOrDecimal256(chainId),
+			VerifyingContract: "0x0000000000000000000000000000000000000000",
+		},
+		Message: action,
 	}
 }

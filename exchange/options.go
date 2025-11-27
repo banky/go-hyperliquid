@@ -1,6 +1,8 @@
 package exchange
 
 import (
+	"time"
+
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/samber/mo"
 )
@@ -82,10 +84,24 @@ func WithMarketOrderSlippage(slippage float64) MarketOrderOption {
 	}
 }
 
+// WithMarketOrderCLOID sets the client order ID
+func WithMarketOrderCLOID(cloid common.Hash) MarketOrderOption {
+	return func(cfg *marketOrderConfig) {
+		cfg.cloid = mo.Some(cloid)
+	}
+}
+
 func defaultMarketOrderConfig() marketOrderConfig {
 	return marketOrderConfig{
 		slippage: DEFAULT_SLIPPAGE,
 	}
+}
+
+func (m marketOrderConfig) getCLOID() *common.Hash {
+	if cloid, ok := m.cloid.Get(); ok {
+		return &cloid
+	}
+	return nil
 }
 
 // ===== Market Close Options =====
@@ -131,4 +147,45 @@ func defaultMarketCloseConfig() marketCloseConfig {
 	return marketCloseConfig{
 		slippage: DEFAULT_SLIPPAGE,
 	}
+}
+
+// ===== Modify Order Options =====
+
+// ModifyOrderOption is a functional option for modify order operations
+type ModifyOrderOption func(*modifyOrderConfig)
+
+type modifyOrderConfig struct {
+	reduceOnly bool
+}
+
+// WithModifyOrderReduceOnly sets the reduce-only flag
+func WithModifyOrderReduceOnly(reduceOnly bool) ModifyOrderOption {
+	return func(cfg *modifyOrderConfig) {
+		cfg.reduceOnly = reduceOnly
+	}
+}
+
+func defaultModifyOrderConfig() modifyOrderConfig {
+	return modifyOrderConfig{
+		reduceOnly: false,
+	}
+}
+
+// ===== Schedule Cancel Options =====
+
+// ScheduleCancelOption is a functional option for modifying scheduled cancel
+type ScheduleCancelOption func(*scheduleCancelConfig)
+
+type scheduleCancelConfig struct {
+	time mo.Option[time.Duration]
+}
+
+func WithScheduleOptionTime(time time.Duration) ScheduleCancelOption {
+	return func(cfg *scheduleCancelConfig) {
+		cfg.time = mo.Some(time)
+	}
+}
+
+func defaultScheduleCancelConfig() scheduleCancelConfig {
+	return scheduleCancelConfig{}
 }

@@ -275,6 +275,11 @@ func (i *Info) NameToCoin(name string) (string, bool) {
 	return coin, ok
 }
 
+func (i *Info) NameToAsset(name string) (int, bool) {
+	asset, ok := i.coinToAsset[i.nameToCoin[name]]
+	return asset, ok
+}
+
 // ===== User Account Queries =====
 
 // UserState retrieves account portfolio and position data.
