@@ -20,15 +20,22 @@ type testResponse struct {
 
 func TestPostSuccess(t *testing.T) {
 	t.Parallel()
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(testResponse{Status: "ok", Value: 42})
-	}))
+	server := httptest.NewServer(
+		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode(testResponse{Status: "ok", Value: 42})
+		}),
+	)
 	defer server.Close()
 
 	client := New(Config{BaseUrl: server.URL})
 	var result testResponse
-	err := client.Post(context.Background(), "/test", testRequest{Name: "test"}, &result)
+	err := client.Post(
+		context.Background(),
+		"/test",
+		testRequest{Name: "test"},
+		&result,
+	)
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
@@ -40,20 +47,27 @@ func TestPostSuccess(t *testing.T) {
 
 func TestPostClientErrorWithJSON(t *testing.T) {
 	t.Parallel()
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusBadRequest)
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]any{
-			"code": "INVALID_REQUEST",
-			"msg":  "Request validation failed",
-			"data": map[string]string{"field": "name"},
-		})
-	}))
+	server := httptest.NewServer(
+		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusBadRequest)
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode(map[string]any{
+				"code": "INVALID_REQUEST",
+				"msg":  "Request validation failed",
+				"data": map[string]string{"field": "name"},
+			})
+		}),
+	)
 	defer server.Close()
 
 	client := New(Config{BaseUrl: server.URL})
 	var result testResponse
-	err := client.Post(context.Background(), "/test", testRequest{Name: ""}, &result)
+	err := client.Post(
+		context.Background(),
+		"/test",
+		testRequest{Name: ""},
+		&result,
+	)
 
 	if err == nil {
 		t.Fatal("expected error, got nil")
@@ -73,7 +87,10 @@ func TestPostClientErrorWithJSON(t *testing.T) {
 	}
 
 	if clientErr.Msg != "Request validation failed" {
-		t.Errorf("expected msg 'Request validation failed', got %s", clientErr.Msg)
+		t.Errorf(
+			"expected msg 'Request validation failed', got %s",
+			clientErr.Msg,
+		)
 	}
 
 	if clientErr.Data == nil {
@@ -83,15 +100,22 @@ func TestPostClientErrorWithJSON(t *testing.T) {
 
 func TestPostClientErrorWithoutJSON(t *testing.T) {
 	t.Parallel()
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusUnauthorized)
-		w.Write([]byte("Unauthorized"))
-	}))
+	server := httptest.NewServer(
+		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusUnauthorized)
+			w.Write([]byte("Unauthorized"))
+		}),
+	)
 	defer server.Close()
 
 	client := New(Config{BaseUrl: server.URL})
 	var result testResponse
-	err := client.Post(context.Background(), "/test", testRequest{Name: "test"}, &result)
+	err := client.Post(
+		context.Background(),
+		"/test",
+		testRequest{Name: "test"},
+		&result,
+	)
 
 	if err == nil {
 		t.Fatal("expected error, got nil")
@@ -113,15 +137,22 @@ func TestPostClientErrorWithoutJSON(t *testing.T) {
 
 func TestPostServerError(t *testing.T) {
 	t.Parallel()
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusInternalServerError)
-		w.Write([]byte("Internal Server Error"))
-	}))
+	server := httptest.NewServer(
+		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusInternalServerError)
+			w.Write([]byte("Internal Server Error"))
+		}),
+	)
 	defer server.Close()
 
 	client := New(Config{BaseUrl: server.URL})
 	var result testResponse
-	err := client.Post(context.Background(), "/test", testRequest{Name: "test"}, &result)
+	err := client.Post(
+		context.Background(),
+		"/test",
+		testRequest{Name: "test"},
+		&result,
+	)
 
 	if err == nil {
 		t.Fatal("expected error, got nil")
@@ -137,22 +168,32 @@ func TestPostServerError(t *testing.T) {
 	}
 
 	if serverErr.Text != "Internal Server Error" {
-		t.Errorf("expected text 'Internal Server Error', got %s", serverErr.Text)
+		t.Errorf(
+			"expected text 'Internal Server Error', got %s",
+			serverErr.Text,
+		)
 	}
 }
 
 func TestPostWithTimeout(t *testing.T) {
 	t.Parallel()
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(testResponse{Status: "ok", Value: 42})
-	}))
+	server := httptest.NewServer(
+		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode(testResponse{Status: "ok", Value: 42})
+		}),
+	)
 	defer server.Close()
 
 	// Create client with 5 second timeout (more than enough for fast server)
 	client := New(Config{BaseUrl: server.URL, Timeout: time.Second * 5})
 	var result testResponse
-	err := client.Post(context.Background(), "/test", testRequest{Name: "test"}, &result)
+	err := client.Post(
+		context.Background(),
+		"/test",
+		testRequest{Name: "test"},
+		&result,
+	)
 
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)

@@ -46,15 +46,51 @@ func (s *subscription) Err() <-chan error {
 type ClientInterface interface {
 	Start(ctx context.Context) error
 	Close()
-	SubscribeAllMids(ctx context.Context, ch chan<- AllMidsMessage) (Subscription, error)
-	SubscribeL2Book(ctx context.Context, coin string, ch chan<- L2BookMessage) (Subscription, error)
-	SubscribeTrades(ctx context.Context, coin string, ch chan<- TradesMessage) (Subscription, error)
-	SubscribeCandle(ctx context.Context, coin string, interval string, ch chan<- CandleMessage) (Subscription, error)
-	SubscribeBbo(ctx context.Context, coin string, ch chan<- BboMessage) (Subscription, error)
-	SubscribeActiveAssetCtx(ctx context.Context, coin string, ch chan<- ActiveAssetCtxMessage) (Subscription, error)
-	SubscribeUserEvents(ctx context.Context, user string, ch chan<- UserEventsMessage) (Subscription, error)
-	SubscribeUserFills(ctx context.Context, user string, ch chan<- UserFillsMessage) (Subscription, error)
-	SubscribeOrderUpdates(ctx context.Context, user string, ch chan<- OrderUpdatesMessage) (Subscription, error)
+	SubscribeAllMids(
+		ctx context.Context,
+		ch chan<- AllMidsMessage,
+	) (Subscription, error)
+	SubscribeL2Book(
+		ctx context.Context,
+		coin string,
+		ch chan<- L2BookMessage,
+	) (Subscription, error)
+	SubscribeTrades(
+		ctx context.Context,
+		coin string,
+		ch chan<- TradesMessage,
+	) (Subscription, error)
+	SubscribeCandle(
+		ctx context.Context,
+		coin string,
+		interval string,
+		ch chan<- CandleMessage,
+	) (Subscription, error)
+	SubscribeBbo(
+		ctx context.Context,
+		coin string,
+		ch chan<- BboMessage,
+	) (Subscription, error)
+	SubscribeActiveAssetCtx(
+		ctx context.Context,
+		coin string,
+		ch chan<- ActiveAssetCtxMessage,
+	) (Subscription, error)
+	SubscribeUserEvents(
+		ctx context.Context,
+		user string,
+		ch chan<- UserEventsMessage,
+	) (Subscription, error)
+	SubscribeUserFills(
+		ctx context.Context,
+		user string,
+		ch chan<- UserFillsMessage,
+	) (Subscription, error)
+	SubscribeOrderUpdates(
+		ctx context.Context,
+		user string,
+		ch chan<- OrderUpdatesMessage,
+	) (Subscription, error)
 }
 
 // Client manages WebSocket subscriptions and message routing
@@ -199,7 +235,10 @@ func (m *Client) pingLoop() {
 			msg := map[string]string{"method": "ping"}
 			data, _ := json.Marshal(msg)
 
-			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			ctx, cancel := context.WithTimeout(
+				context.Background(),
+				5*time.Second,
+			)
 			err := conn.Write(ctx, websocket.MessageText, data)
 			cancel()
 

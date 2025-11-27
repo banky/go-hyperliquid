@@ -46,8 +46,8 @@ func (cl *cassetteLoader) getCassette(name string) (interface{}, error) {
 
 // cassetteRestClient is a mock REST client that returns cassette data
 type cassetteRestClient struct {
-	loader              *cassetteLoader
-	cassetteMappings    map[string]string
+	loader           *cassetteLoader
+	cassetteMappings map[string]string
 }
 
 // newCassetteRestClient creates a new cassette-based REST client
@@ -59,12 +59,20 @@ func newCassetteRestClient(loader *cassetteLoader) *cassetteRestClient {
 }
 
 // registerCassette maps a request type/name combination to a cassette
-func (crc *cassetteRestClient) registerCassette(name string, cassetteName string) {
+func (crc *cassetteRestClient) registerCassette(
+	name string,
+	cassetteName string,
+) {
 	crc.cassetteMappings[name] = cassetteName
 }
 
 // Post implements the rest.ClientInterface Post method using cassettes
-func (crc *cassetteRestClient) Post(ctx context.Context, path string, body any, result any) error {
+func (crc *cassetteRestClient) Post(
+	ctx context.Context,
+	path string,
+	body any,
+	result any,
+) error {
 	// Extract request type from body
 	bodyMap, ok := body.(map[string]any)
 	if !ok {
@@ -87,7 +95,11 @@ func (crc *cassetteRestClient) Post(ctx context.Context, path string, body any, 
 	// Load the cassette
 	cassette, err := crc.loader.getCassette(cassetteName)
 	if err != nil {
-		return fmt.Errorf("failed to load cassette for request type %s: %w", requestType, err)
+		return fmt.Errorf(
+			"failed to load cassette for request type %s: %w",
+			requestType,
+			err,
+		)
 	}
 
 	// Marshal the cassette response and unmarshal into the result
@@ -116,7 +128,10 @@ func (crc *cassetteRestClient) IsMainnet() bool {
 // ===== Test Helpers =====
 
 // loadCassettes helper to load cassettes from files
-func loadCassettes(t *testing.T, testCassetteNames ...string) *cassetteRestClient {
+func loadCassettes(
+	t *testing.T,
+	testCassetteNames ...string,
+) *cassetteRestClient {
 	loader := newCassetteLoader()
 	client := newCassetteRestClient(loader)
 
@@ -202,17 +217,27 @@ func TestCassette_UserState(t *testing.T) {
 	client := loadCassettes(t, "test_get_user_state")
 	info := &Info{rest: client}
 
-	response, err := info.UserState(context.Background(), common.HexToAddress("0x5e9ee1089755c3435139848e47e6635505d5a13a"), "")
+	response, err := info.UserState(
+		context.Background(),
+		common.HexToAddress("0x5e9ee1089755c3435139848e47e6635505d5a13a"),
+		"",
+	)
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
 
 	// From Python test: checks assetPositions length and marginSummary
 	if len(response.AssetPositions) != 12 {
-		t.Errorf("expected 12 asset positions, got %d", len(response.AssetPositions))
+		t.Errorf(
+			"expected 12 asset positions, got %d",
+			len(response.AssetPositions),
+		)
 	}
 	if response.MarginSummary.AccountValue != "1182.312496" {
-		t.Errorf("expected accountValue=1182.312496, got %s", response.MarginSummary.AccountValue)
+		t.Errorf(
+			"expected accountValue=1182.312496, got %s",
+			response.MarginSummary.AccountValue,
+		)
 	}
 }
 
@@ -221,7 +246,11 @@ func TestCassette_OpenOrders(t *testing.T) {
 	client := loadCassettes(t, "test_get_open_orders")
 	info := &Info{rest: client}
 
-	response, err := info.OpenOrders(context.Background(), "0x5e9ee1089755c3435139848e47e6635505d5a13a", "")
+	response, err := info.OpenOrders(
+		context.Background(),
+		"0x5e9ee1089755c3435139848e47e6635505d5a13a",
+		"",
+	)
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
@@ -281,7 +310,10 @@ func TestCassette_UserFills(t *testing.T) {
 	client := loadCassettes(t, "test_get_user_fills")
 	info := &Info{rest: client}
 
-	response, err := info.UserFills(context.Background(), "0xb7b6f3cea3f66bf525f5d8f965f6dbf6d9b017b2")
+	response, err := info.UserFills(
+		context.Background(),
+		"0xb7b6f3cea3f66bf525f5d8f965f6dbf6d9b017b2",
+	)
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
@@ -304,7 +336,13 @@ func TestCassette_UserFillsByTime(t *testing.T) {
 	client := loadCassettes(t, "test_get_user_fills_by_time")
 	info := &Info{rest: client}
 
-	response, err := info.UserFillsByTime(context.Background(), "0xb7b6f3cea3f66bf525f5d8f965f6dbf6d9b017b2", 1683245555699, nil, true)
+	response, err := info.UserFillsByTime(
+		context.Background(),
+		"0xb7b6f3cea3f66bf525f5d8f965f6dbf6d9b017b2",
+		1683245555699,
+		nil,
+		true,
+	)
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
@@ -330,10 +368,16 @@ func TestCassette_Meta(t *testing.T) {
 		t.Errorf("expected 28 assets, got %d", len(response.Universe))
 	}
 	if len(response.Universe) > 0 && response.Universe[0].Name != "BTC" {
-		t.Errorf("expected first asset to be BTC, got %s", response.Universe[0].Name)
+		t.Errorf(
+			"expected first asset to be BTC, got %s",
+			response.Universe[0].Name,
+		)
 	}
 	if len(response.Universe) > 0 && response.Universe[0].SzDecimals != 5 {
-		t.Errorf("expected BTC szDecimals=5, got %d", response.Universe[0].SzDecimals)
+		t.Errorf(
+			"expected BTC szDecimals=5, got %d",
+			response.Universe[0].SzDecimals,
+		)
 	}
 }
 
@@ -342,7 +386,12 @@ func TestCassette_FundingHistory(t *testing.T) {
 	client := loadCassettes(t, "test_get_funding_history[None]")
 	info := &Info{rest: client}
 
-	response, err := info.FundingHistory(context.Background(), "BTC", 1681923833000, nil)
+	response, err := info.FundingHistory(
+		context.Background(),
+		"BTC",
+		1681923833000,
+		nil,
+	)
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
@@ -396,7 +445,13 @@ func TestCassette_CandlesSnapshot(t *testing.T) {
 	client := loadCassettes(t, "test_get_candles_snapshot")
 	info := &Info{rest: client, nameToCoin: map[string]string{"kPEPE": "kPEPE"}}
 
-	response, err := info.CandlesSnapshot(context.Background(), "kPEPE", "1h", 1684702007000, 1684784807000)
+	response, err := info.CandlesSnapshot(
+		context.Background(),
+		"kPEPE",
+		"1h",
+		1684702007000,
+		1684784807000,
+	)
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
@@ -427,7 +482,12 @@ func TestCassette_UserFundingHistory(t *testing.T) {
 
 	// UserFundingHistory takes int64 values, not pointers
 	var endTime int64 = 1682010233000
-	response, err := info.UserFundingHistory(context.Background(), "0xb7b6f3cea3f66bf525f5d8f965f6dbf6d9b017b2", 1681923833000, &endTime)
+	response, err := info.UserFundingHistory(
+		context.Background(),
+		"0xb7b6f3cea3f66bf525f5d8f965f6dbf6d9b017b2",
+		1681923833000,
+		&endTime,
+	)
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}

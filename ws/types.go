@@ -85,7 +85,11 @@ func (s CandleSubscription) identifier() string {
 	return fmt.Sprintf("candle:%s,%s", strings.ToLower(s.Coin), s.Interval)
 }
 func (s CandleSubscription) subscriptionPayload() any {
-	return map[string]any{"type": "candle", "coin": s.Coin, "interval": s.Interval}
+	return map[string]any{
+		"type":     "candle",
+		"coin":     s.Coin,
+		"interval": s.Interval,
+	}
 }
 
 // OrderUpdatesSubscription subscribes to order updates
@@ -121,7 +125,10 @@ func (s UserNonFundingLedgerUpdatesSubscription) channelName() string {
 	return "userNonFundingLedgerUpdates"
 }
 func (s UserNonFundingLedgerUpdatesSubscription) identifier() string {
-	return fmt.Sprintf("userNonFundingLedgerUpdates:%s", strings.ToLower(s.User))
+	return fmt.Sprintf(
+		"userNonFundingLedgerUpdates:%s",
+		strings.ToLower(s.User),
+	)
 }
 func (s UserNonFundingLedgerUpdatesSubscription) subscriptionPayload() any {
 	return map[string]any{"type": "userNonFundingLedgerUpdates", "user": s.User}
@@ -146,7 +153,8 @@ type BboSubscription struct {
 }
 
 func (s BboSubscription) channelName() string { return "bbo" }
-func (s BboSubscription) identifier() string  { return fmt.Sprintf("bbo:%s", strings.ToLower(s.Coin)) }
+
+func (s BboSubscription) identifier() string { return fmt.Sprintf("bbo:%s", strings.ToLower(s.Coin)) }
 func (s BboSubscription) subscriptionPayload() any {
 	return map[string]any{"type": "bbo", "coin": s.Coin}
 }
@@ -172,10 +180,18 @@ type ActiveAssetDataSubscription struct {
 
 func (s ActiveAssetDataSubscription) channelName() string { return "activeAssetData" }
 func (s ActiveAssetDataSubscription) identifier() string {
-	return fmt.Sprintf("activeAssetData:%s,%s", strings.ToLower(s.Coin), strings.ToLower(s.User))
+	return fmt.Sprintf(
+		"activeAssetData:%s,%s",
+		strings.ToLower(s.Coin),
+		strings.ToLower(s.User),
+	)
 }
 func (s ActiveAssetDataSubscription) subscriptionPayload() any {
-	return map[string]any{"type": "activeAssetData", "user": s.User, "coin": s.Coin}
+	return map[string]any{
+		"type": "activeAssetData",
+		"user": s.User,
+		"coin": s.Coin,
+	}
 }
 
 // ===== Message Types =====

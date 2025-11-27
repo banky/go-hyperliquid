@@ -19,7 +19,12 @@ func (e *Exchange) signL1Action(
 	action map[string]any,
 	nonce uint64,
 ) (signature, error) {
-	actionHash, err := e.hashAction(action, e.vaultAddress, nonce, e.expiresAfter)
+	actionHash, err := e.hashAction(
+		action,
+		e.vaultAddress,
+		nonce,
+		e.expiresAfter,
+	)
 	if err != nil {
 		return signature{}, fmt.Errorf("failed to create action hash: %w", err)
 	}
@@ -29,7 +34,10 @@ func (e *Exchange) signL1Action(
 
 	hash, _, err := apitypes.TypedDataAndHash(typedData)
 	if err != nil {
-		return signature{}, fmt.Errorf("failed generating hash for typed data: %w", err)
+		return signature{}, fmt.Errorf(
+			"failed generating hash for typed data: %w",
+			err,
+		)
 	}
 
 	return e.signHash(common.BytesToHash(hash))

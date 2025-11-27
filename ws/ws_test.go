@@ -87,47 +87,60 @@ type mockWSServer struct {
 }
 
 func newMockWSServer(t *testing.T) *mockWSServer {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		conn, err := websocket.Accept(w, r, nil)
-		if err != nil {
-			t.Logf("websocket accept error: %v", err)
-			return
-		}
-		defer conn.Close(websocket.StatusNormalClosure, "test complete")
-
-		// Send connection established message
-		conn.Write(context.Background(), websocket.MessageText, []byte("Websocket connection established."))
-
-		// Handle subscription messages and send responses
-		for {
-			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-			_, data, err := conn.Read(ctx)
-			cancel()
-
+	server := httptest.NewServer(
+		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			conn, err := websocket.Accept(w, r, nil)
 			if err != nil {
+				t.Logf("websocket accept error: %v", err)
 				return
 			}
+			defer conn.Close(websocket.StatusNormalClosure, "test complete")
 
-			var msg map[string]any
-			if err := json.Unmarshal(data, &msg); err != nil {
-				continue
-			}
+			// Send connection established message
+			conn.Write(
+				context.Background(),
+				websocket.MessageText,
+				[]byte("Websocket connection established."),
+			)
 
-			method, _ := msg["method"].(string)
-			switch method {
-			case "ping":
-				pongMsg := map[string]string{"channel": "pong"}
-				pongData, _ := json.Marshal(pongMsg)
-				conn.Write(context.Background(), websocket.MessageText, pongData)
-			case "subscribe":
-				// Server acknowledges subscription
-				_ = msg["subscription"]
-			case "unsubscribe":
-				// Server acknowledges unsubscription
-				_ = msg["subscription"]
+			// Handle subscription messages and send responses
+			for {
+				ctx, cancel := context.WithTimeout(
+					context.Background(),
+					2*time.Second,
+				)
+				_, data, err := conn.Read(ctx)
+				cancel()
+
+				if err != nil {
+					return
+				}
+
+				var msg map[string]any
+				if err := json.Unmarshal(data, &msg); err != nil {
+					continue
+				}
+
+				method, _ := msg["method"].(string)
+				switch method {
+				case "ping":
+					pongMsg := map[string]string{"channel": "pong"}
+					pongData, _ := json.Marshal(pongMsg)
+					conn.Write(
+						context.Background(),
+						websocket.MessageText,
+						pongData,
+					)
+				case "subscribe":
+					// Server acknowledges subscription
+					_ = msg["subscription"]
+				case "unsubscribe":
+					// Server acknowledges unsubscription
+					_ = msg["subscription"]
+				}
 			}
-		}
-	}))
+		}),
+	)
 
 	return &mockWSServer{
 		server: server,
@@ -358,7 +371,11 @@ func TestUserEventsDuplicateSubscription(t *testing.T) {
 
 	// First subscription should work
 	msgChan1 := make(chan UserEventsMessage)
-	sub1, err := client.SubscribeUserEvents(context.Background(), "0xABC", msgChan1)
+	sub1, err := client.SubscribeUserEvents(
+		context.Background(),
+		"0xABC",
+		msgChan1,
+	)
 	if err != nil {
 		t.Fatalf("first SubscribeUserEvents() failed: %v", err)
 	}
@@ -369,7 +386,11 @@ func TestUserEventsDuplicateSubscription(t *testing.T) {
 	// Second subscription to same channel (userEvents) should fail
 	// because userEvents only allows one subscription
 	msgChan2 := make(chan UserEventsMessage)
-	sub2, err := client.SubscribeUserEvents(context.Background(), "0xDEF", msgChan2)
+	sub2, err := client.SubscribeUserEvents(
+		context.Background(),
+		"0xDEF",
+		msgChan2,
+	)
 	if err == nil {
 		// If it succeeded, that's an error - userEvents should only allow 1
 		sub2.Unsubscribe()
@@ -444,7 +465,10 @@ func TestUnsubscribe(t *testing.T) {
 	client.mu.RUnlock()
 
 	if btcSubs != 1 {
-		t.Errorf("expected 1 BTC subscription after unsubscribe, got %d", btcSubs)
+		t.Errorf(
+			"expected 1 BTC subscription after unsubscribe, got %d",
+			btcSubs,
+		)
 	}
 
 	// ETH should be unaffected
@@ -525,7 +549,11 @@ func TestMultipleSubscriptionsPerChannel(t *testing.T) {
 	}
 
 	if !received1 || !received2 {
-		t.Errorf("both subscriptions should receive message: received1=%v, received2=%v", received1, received2)
+		t.Errorf(
+			"both subscriptions should receive message: received1=%v, received2=%v",
+			received1,
+			received2,
+		)
 	}
 }
 
@@ -635,8 +663,11 @@ func TestSubscriptionPayload(t *testing.T) {
 			expectedKeys: []string{"type", "coin", "interval"},
 		},
 		{
-			name:         "ActiveAssetData includes type, coin, and user",
-			sub:          ActiveAssetDataSubscription{Coin: "SOL", User: "0xABC"},
+			name: "ActiveAssetData includes type, coin, and user",
+			sub: ActiveAssetDataSubscription{
+				Coin: "SOL",
+				User: "0xABC",
+			},
 			expectedKeys: []string{"type", "coin", "user"},
 		},
 	}

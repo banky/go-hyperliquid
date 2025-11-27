@@ -61,7 +61,12 @@ func TestFloatToWire_Success(t *testing.T) {
 				t.Fatalf("floatToWire(%v) unexpected error: %v", tt.input, err)
 			}
 			if got != tt.expected {
-				t.Fatalf("floatToWire(%v) = %q, want %q", tt.input, got, tt.expected)
+				t.Fatalf(
+					"floatToWire(%v) = %q, want %q",
+					tt.input,
+					got,
+					tt.expected,
+				)
 			}
 		})
 	}
@@ -143,15 +148,27 @@ func TestStringToFloat(t *testing.T) {
 			got, err := stringToFloat(tt.input)
 			if tt.shouldFail {
 				if err == nil {
-					t.Fatalf("stringToFloat(%q) expected error, got nil", tt.input)
+					t.Fatalf(
+						"stringToFloat(%q) expected error, got nil",
+						tt.input,
+					)
 				}
 				return
 			}
 			if err != nil {
-				t.Fatalf("stringToFloat(%q) unexpected error: %v", tt.input, err)
+				t.Fatalf(
+					"stringToFloat(%q) unexpected error: %v",
+					tt.input,
+					err,
+				)
 			}
 			if math.Abs(got-tt.want) > epsilon {
-				t.Fatalf("stringToFloat(%q) = %v, want %v", tt.input, got, tt.want)
+				t.Fatalf(
+					"stringToFloat(%q) = %v, want %v",
+					tt.input,
+					got,
+					tt.want,
+				)
 			}
 		})
 	}

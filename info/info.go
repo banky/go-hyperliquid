@@ -95,7 +95,11 @@ func (i *Info) initializeMetadata(ctx context.Context, cfg Config) error {
 				// Fetch meta for default DEX
 				fetched, err := i.Meta(ctx, dex)
 				if err != nil {
-					return fmt.Errorf("failed to fetch meta for dex %q: %w", dex, err)
+					return fmt.Errorf(
+						"failed to fetch meta for dex %q: %w",
+						dex,
+						err,
+					)
 				}
 				meta = fetched
 			}
@@ -135,10 +139,15 @@ func (i *Info) initializeSpotMetadata(spotMeta *SpotMeta) {
 			quoteID := spot.Tokens[1]
 
 			// Access tokens by index
-			if baseID >= 0 && baseID < len(spotMeta.Tokens) && quoteID >= 0 && quoteID < len(spotMeta.Tokens) {
+			if baseID >= 0 && baseID < len(spotMeta.Tokens) && quoteID >= 0 &&
+				quoteID < len(spotMeta.Tokens) {
 				baseInfo := spotMeta.Tokens[baseID]
 				quoteInfo := spotMeta.Tokens[quoteID]
-				friendlyName := fmt.Sprintf("%s/%s", baseInfo.Name, quoteInfo.Name)
+				friendlyName := fmt.Sprintf(
+					"%s/%s",
+					baseInfo.Name,
+					quoteInfo.Name,
+				)
 				if _, exists := i.nameToCoin[friendlyName]; !exists {
 					i.nameToCoin[friendlyName] = spot.Name
 				}
@@ -175,7 +184,10 @@ func (i *Info) Close() {
 // ===== Market Data Queries =====
 
 // AllMids retrieves mid-prices for all coins, with fallback to last trade price if book is empty.
-func (i *Info) AllMids(ctx context.Context, dex string) (map[string]string, error) {
+func (i *Info) AllMids(
+	ctx context.Context,
+	dex string,
+) (map[string]string, error) {
 	var result map[string]string
 	err := i.rest.Post(
 		ctx,
@@ -191,7 +203,10 @@ func (i *Info) AllMids(ctx context.Context, dex string) (map[string]string, erro
 }
 
 // L2Snapshot retrieves up to 20 levels of the order book for a coin.
-func (i *Info) L2Snapshot(ctx context.Context, name string) (*L2BookSnapshot, error) {
+func (i *Info) L2Snapshot(
+	ctx context.Context,
+	name string,
+) (*L2BookSnapshot, error) {
 	coin := i.getCoinFromName(name)
 	if coin == "" {
 		return nil, fmt.Errorf("unknown coin name: %s", name)
@@ -263,7 +278,11 @@ func (i *Info) NameToCoin(name string) (string, bool) {
 // ===== User Account Queries =====
 
 // UserState retrieves account portfolio and position data.
-func (i *Info) UserState(ctx context.Context, address common.Address, dex string) (*UserState, error) {
+func (i *Info) UserState(
+	ctx context.Context,
+	address common.Address,
+	dex string,
+) (*UserState, error) {
 	var result UserState
 	err := i.rest.Post(
 		ctx,
@@ -296,7 +315,11 @@ func (i *Info) SpotUserState(ctx context.Context, address string) (any, error) {
 }
 
 // OpenOrders retrieves a user's active orders.
-func (i *Info) OpenOrders(ctx context.Context, address string, dex string) ([]OpenOrder, error) {
+func (i *Info) OpenOrders(
+	ctx context.Context,
+	address string,
+	dex string,
+) ([]OpenOrder, error) {
 	var result []OpenOrder
 	err := i.rest.Post(
 		ctx,

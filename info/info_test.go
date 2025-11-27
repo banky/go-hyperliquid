@@ -19,7 +19,12 @@ type mockRestClient struct {
 
 var _ rest.ClientInterface = (*mockRestClient)(nil)
 
-func (m *mockRestClient) Post(ctx context.Context, path string, body any, result any) error {
+func (m *mockRestClient) Post(
+	ctx context.Context,
+	path string,
+	body any,
+	result any,
+) error {
 	return m.postFunc(ctx, path, body, result)
 }
 
@@ -61,63 +66,99 @@ func (m *mockWsClient) Close() {
 	}
 }
 
-func (m *mockWsClient) SubscribeAllMids(ctx context.Context, ch chan<- ws.AllMidsMessage) (ws.Subscription, error) {
+func (m *mockWsClient) SubscribeAllMids(
+	ctx context.Context,
+	ch chan<- ws.AllMidsMessage,
+) (ws.Subscription, error) {
 	if m.subscribeAllMidsFunc != nil {
 		return m.subscribeAllMidsFunc(ctx, ch)
 	}
 	return nil, nil
 }
 
-func (m *mockWsClient) SubscribeL2Book(ctx context.Context, coin string, ch chan<- ws.L2BookMessage) (ws.Subscription, error) {
+func (m *mockWsClient) SubscribeL2Book(
+	ctx context.Context,
+	coin string,
+	ch chan<- ws.L2BookMessage,
+) (ws.Subscription, error) {
 	if m.subscribeL2BookFunc != nil {
 		return m.subscribeL2BookFunc(ctx, coin, ch)
 	}
 	return nil, nil
 }
 
-func (m *mockWsClient) SubscribeTrades(ctx context.Context, coin string, ch chan<- ws.TradesMessage) (ws.Subscription, error) {
+func (m *mockWsClient) SubscribeTrades(
+	ctx context.Context,
+	coin string,
+	ch chan<- ws.TradesMessage,
+) (ws.Subscription, error) {
 	if m.subscribeTradesFunc != nil {
 		return m.subscribeTradesFunc(ctx, coin, ch)
 	}
 	return nil, nil
 }
 
-func (m *mockWsClient) SubscribeCandle(ctx context.Context, coin string, interval string, ch chan<- ws.CandleMessage) (ws.Subscription, error) {
+func (m *mockWsClient) SubscribeCandle(
+	ctx context.Context,
+	coin string,
+	interval string,
+	ch chan<- ws.CandleMessage,
+) (ws.Subscription, error) {
 	if m.subscribeCandleFunc != nil {
 		return m.subscribeCandleFunc(ctx, coin, interval, ch)
 	}
 	return nil, nil
 }
 
-func (m *mockWsClient) SubscribeBbo(ctx context.Context, coin string, ch chan<- ws.BboMessage) (ws.Subscription, error) {
+func (m *mockWsClient) SubscribeBbo(
+	ctx context.Context,
+	coin string,
+	ch chan<- ws.BboMessage,
+) (ws.Subscription, error) {
 	if m.subscribeBboFunc != nil {
 		return m.subscribeBboFunc(ctx, coin, ch)
 	}
 	return nil, nil
 }
 
-func (m *mockWsClient) SubscribeActiveAssetCtx(ctx context.Context, coin string, ch chan<- ws.ActiveAssetCtxMessage) (ws.Subscription, error) {
+func (m *mockWsClient) SubscribeActiveAssetCtx(
+	ctx context.Context,
+	coin string,
+	ch chan<- ws.ActiveAssetCtxMessage,
+) (ws.Subscription, error) {
 	if m.subscribeActiveAssetCtxFunc != nil {
 		return m.subscribeActiveAssetCtxFunc(ctx, coin, ch)
 	}
 	return nil, nil
 }
 
-func (m *mockWsClient) SubscribeUserEvents(ctx context.Context, user string, ch chan<- ws.UserEventsMessage) (ws.Subscription, error) {
+func (m *mockWsClient) SubscribeUserEvents(
+	ctx context.Context,
+	user string,
+	ch chan<- ws.UserEventsMessage,
+) (ws.Subscription, error) {
 	if m.subscribeUserEventsFunc != nil {
 		return m.subscribeUserEventsFunc(ctx, user, ch)
 	}
 	return nil, nil
 }
 
-func (m *mockWsClient) SubscribeUserFills(ctx context.Context, user string, ch chan<- ws.UserFillsMessage) (ws.Subscription, error) {
+func (m *mockWsClient) SubscribeUserFills(
+	ctx context.Context,
+	user string,
+	ch chan<- ws.UserFillsMessage,
+) (ws.Subscription, error) {
 	if m.subscribeUserFillsFunc != nil {
 		return m.subscribeUserFillsFunc(ctx, user, ch)
 	}
 	return nil, nil
 }
 
-func (m *mockWsClient) SubscribeOrderUpdates(ctx context.Context, user string, ch chan<- ws.OrderUpdatesMessage) (ws.Subscription, error) {
+func (m *mockWsClient) SubscribeOrderUpdates(
+	ctx context.Context,
+	user string,
+	ch chan<- ws.OrderUpdatesMessage,
+) (ws.Subscription, error) {
 	if m.subscribeOrderUpdatesFunc != nil {
 		return m.subscribeOrderUpdatesFunc(ctx, user, ch)
 	}
@@ -228,10 +269,18 @@ func TestL2SnapshotSuccess(t *testing.T) {
 	}
 
 	if snapshot.Coin != expectedSnapshot.Coin {
-		t.Errorf("expected coin %s, got %s", expectedSnapshot.Coin, snapshot.Coin)
+		t.Errorf(
+			"expected coin %s, got %s",
+			expectedSnapshot.Coin,
+			snapshot.Coin,
+		)
 	}
 	if snapshot.Time != expectedSnapshot.Time {
-		t.Errorf("expected time %d, got %d", expectedSnapshot.Time, snapshot.Time)
+		t.Errorf(
+			"expected time %d, got %d",
+			expectedSnapshot.Time,
+			snapshot.Time,
+		)
 	}
 }
 
@@ -264,7 +313,11 @@ func TestL2SnapshotNameMapping(t *testing.T) {
 	}
 
 	if snapshot.Coin != expectedSnapshot.Coin {
-		t.Errorf("expected coin %s, got %s", expectedSnapshot.Coin, snapshot.Coin)
+		t.Errorf(
+			"expected coin %s, got %s",
+			expectedSnapshot.Coin,
+			snapshot.Coin,
+		)
 	}
 }
 
@@ -302,7 +355,11 @@ func TestMetaSuccess(t *testing.T) {
 	}
 
 	if len(meta.Universe) != len(expectedMeta.Universe) {
-		t.Errorf("expected %d assets, got %d", len(expectedMeta.Universe), len(meta.Universe))
+		t.Errorf(
+			"expected %d assets, got %d",
+			len(expectedMeta.Universe),
+			len(meta.Universe),
+		)
 	}
 }
 
@@ -313,7 +370,14 @@ func TestSpotMetaSuccess(t *testing.T) {
 			{Name: "USDC", Tokens: [2]int{0, 1}, Index: 0, IsCanonical: true},
 		},
 		Tokens: []SpotTokenInfo{
-			{Name: "USDC", SzDecimals: 6, WeiDecimals: 6, Index: 0, TokenId: "0x1", IsCanonical: true},
+			{
+				Name:        "USDC",
+				SzDecimals:  6,
+				WeiDecimals: 6,
+				Index:       0,
+				TokenId:     "0x1",
+				IsCanonical: true,
+			},
 		},
 	}
 
@@ -363,7 +427,10 @@ func TestUserStateSuccess(t *testing.T) {
 			postFunc: func(ctx context.Context, path string, body any, result any) error {
 				req := body.(map[string]any)
 				if req["type"] != "clearinghouseState" {
-					t.Errorf("expected type clearinghouseState, got %v", req["type"])
+					t.Errorf(
+						"expected type clearinghouseState, got %v",
+						req["type"],
+					)
 				}
 				if req["user"] != common.HexToAddress("0x123") {
 					t.Errorf("expected user 0x123, got %v", req["user"])
@@ -377,7 +444,11 @@ func TestUserStateSuccess(t *testing.T) {
 		},
 	}
 
-	state, err := info.UserState(context.Background(), common.HexToAddress("0x123"), "mainnet")
+	state, err := info.UserState(
+		context.Background(),
+		common.HexToAddress("0x123"),
+		"mainnet",
+	)
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
@@ -393,8 +464,22 @@ func TestUserStateSuccess(t *testing.T) {
 func TestOpenOrdersSuccess(t *testing.T) {
 	t.Parallel()
 	expectedOrders := []OpenOrder{
-		{Coin: "BTC", LimitPx: "45000", Oid: 1, Side: "A", Sz: "1", Timestamp: 1234567890},
-		{Coin: "ETH", LimitPx: "3000", Oid: 2, Side: "B", Sz: "10", Timestamp: 1234567891},
+		{
+			Coin:      "BTC",
+			LimitPx:   "45000",
+			Oid:       1,
+			Side:      "A",
+			Sz:        "1",
+			Timestamp: 1234567890,
+		},
+		{
+			Coin:      "ETH",
+			LimitPx:   "3000",
+			Oid:       2,
+			Side:      "B",
+			Sz:        "10",
+			Timestamp: 1234567891,
+		},
 	}
 
 	info := &Info{
@@ -423,8 +508,22 @@ func TestOpenOrdersSuccess(t *testing.T) {
 func TestUserFillsSuccess(t *testing.T) {
 	t.Parallel()
 	expectedFills := []Fill{
-		{Coin: "BTC", Px: "45000", Sz: "1", Side: "A", Time: 1234567890, Oid: 1},
-		{Coin: "ETH", Px: "3000", Sz: "10", Side: "B", Time: 1234567891, Oid: 2},
+		{
+			Coin: "BTC",
+			Px:   "45000",
+			Sz:   "1",
+			Side: "A",
+			Time: 1234567890,
+			Oid:  1,
+		},
+		{
+			Coin: "ETH",
+			Px:   "3000",
+			Sz:   "10",
+			Side: "B",
+			Time: 1234567891,
+			Oid:  2,
+		},
 	}
 
 	info := &Info{
@@ -453,7 +552,14 @@ func TestUserFillsSuccess(t *testing.T) {
 func TestUserFillsByTimeSuccess(t *testing.T) {
 	t.Parallel()
 	expectedFills := []Fill{
-		{Coin: "BTC", Px: "45000", Sz: "1", Side: "A", Time: 1234567890, Oid: 1},
+		{
+			Coin: "BTC",
+			Px:   "45000",
+			Sz:   "1",
+			Side: "A",
+			Time: 1234567890,
+			Oid:  1,
+		},
 	}
 	endTime := int64(1234567900)
 
@@ -462,16 +568,29 @@ func TestUserFillsByTimeSuccess(t *testing.T) {
 			postFunc: func(ctx context.Context, path string, body any, result any) error {
 				req := body.(map[string]any)
 				if req["type"] != "userFillsByTime" {
-					t.Errorf("expected type userFillsByTime, got %v", req["type"])
+					t.Errorf(
+						"expected type userFillsByTime, got %v",
+						req["type"],
+					)
 				}
 				if req["startTime"] != int64(1234567880) {
-					t.Errorf("expected startTime 1234567880, got %v", req["startTime"])
+					t.Errorf(
+						"expected startTime 1234567880, got %v",
+						req["startTime"],
+					)
 				}
 				if req["endTime"] != endTime {
-					t.Errorf("expected endTime %d, got %v", endTime, req["endTime"])
+					t.Errorf(
+						"expected endTime %d, got %v",
+						endTime,
+						req["endTime"],
+					)
 				}
 				if req["aggregateByTime"] != true {
-					t.Errorf("expected aggregateByTime true, got %v", req["aggregateByTime"])
+					t.Errorf(
+						"expected aggregateByTime true, got %v",
+						req["aggregateByTime"],
+					)
 				}
 				*result.(*[]Fill) = expectedFills
 				return nil
@@ -479,7 +598,13 @@ func TestUserFillsByTimeSuccess(t *testing.T) {
 		},
 	}
 
-	fills, err := info.UserFillsByTime(context.Background(), "0x123", 1234567880, &endTime, true)
+	fills, err := info.UserFillsByTime(
+		context.Background(),
+		"0x123",
+		1234567880,
+		&endTime,
+		true,
+	)
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
@@ -500,7 +625,10 @@ func TestFundingHistorySuccess(t *testing.T) {
 			postFunc: func(ctx context.Context, path string, body any, result any) error {
 				req := body.(map[string]any)
 				if req["type"] != "fundingHistory" {
-					t.Errorf("expected type fundingHistory, got %v", req["type"])
+					t.Errorf(
+						"expected type fundingHistory, got %v",
+						req["type"],
+					)
 				}
 				if req["coin"] != "BTC" {
 					t.Errorf("expected coin BTC, got %v", req["coin"])
@@ -512,7 +640,12 @@ func TestFundingHistorySuccess(t *testing.T) {
 		nameToCoin: map[string]string{"BTC": "BTC"},
 	}
 
-	history, err := info.FundingHistory(context.Background(), "BTC", 1234567880, nil)
+	history, err := info.FundingHistory(
+		context.Background(),
+		"BTC",
+		1234567880,
+		nil,
+	)
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
@@ -525,7 +658,17 @@ func TestFundingHistorySuccess(t *testing.T) {
 func TestCandlesSnapshotSuccess(t *testing.T) {
 	t.Parallel()
 	expectedCandles := []Candle{
-		{T: 1234567890, O: "45000", C: "45500", H: "46000", L: "44500", V: "100", N: 50, S: "BTC", I: "1h"},
+		{
+			T: 1234567890,
+			O: "45000",
+			C: "45500",
+			H: "46000",
+			L: "44500",
+			V: "100",
+			N: 50,
+			S: "BTC",
+			I: "1h",
+		},
 	}
 
 	info := &Info{
@@ -533,7 +676,10 @@ func TestCandlesSnapshotSuccess(t *testing.T) {
 			postFunc: func(ctx context.Context, path string, body any, result any) error {
 				req := body.(map[string]any)
 				if req["type"] != "candleSnapshot" {
-					t.Errorf("expected type candleSnapshot, got %v", req["type"])
+					t.Errorf(
+						"expected type candleSnapshot, got %v",
+						req["type"],
+					)
 				}
 				*result.(*[]Candle) = expectedCandles
 				return nil
@@ -542,7 +688,13 @@ func TestCandlesSnapshotSuccess(t *testing.T) {
 		nameToCoin: map[string]string{"BTC": "BTC"},
 	}
 
-	candles, err := info.CandlesSnapshot(context.Background(), "BTC", "1h", 1234567880, 1234567890)
+	candles, err := info.CandlesSnapshot(
+		context.Background(),
+		"BTC",
+		"1h",
+		1234567880,
+		1234567890,
+	)
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
@@ -825,7 +977,11 @@ func TestSetCoinMapping(t *testing.T) {
 
 	for _, coin := range coins {
 		if val, ok := info.nameToCoin[coin]; !ok || val != coin {
-			t.Errorf("expected mapping %s->%s, not found or incorrect", coin, coin)
+			t.Errorf(
+				"expected mapping %s->%s, not found or incorrect",
+				coin,
+				coin,
+			)
 		}
 	}
 }
@@ -928,7 +1084,10 @@ func TestPullRealData(t *testing.T) {
 				return
 			}
 		case <-ctx.Done():
-			t.Fatalf("timeout waiting for messages after 10s, got %d messages", messageCount)
+			t.Fatalf(
+				"timeout waiting for messages after 10s, got %d messages",
+				messageCount,
+			)
 		}
 	}
 }

@@ -116,7 +116,10 @@ func (t OrderType) toOrderTypeWire() (OrderTypeWire, error) {
 		// Convert to wire format
 		triggerPxStr, err := floatToWire(t.Trigger.TriggerPx)
 		if err != nil {
-			return OrderTypeWire{}, fmt.Errorf("failed to convert trigger price: %w", err)
+			return OrderTypeWire{}, fmt.Errorf(
+				"failed to convert trigger price: %w",
+				err,
+			)
 		}
 
 		wire.Trigger = &TriggerOrderWire{

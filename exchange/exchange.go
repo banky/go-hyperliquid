@@ -151,7 +151,11 @@ func (e *Exchange) BulkOrders(
 
 		wire, err := order.toOrderWire(assetId)
 		if err != nil {
-			return Response{}, fmt.Errorf("failed to convert order %d: %w", i, err)
+			return Response{}, fmt.Errorf(
+				"failed to convert order %d: %w",
+				i,
+				err,
+			)
 		}
 		orderWires[i] = wire
 	}
@@ -385,7 +389,11 @@ func (e *Exchange) post(
 
 	var result Response
 	if err := e.rest.Post(ctx, "/exchange", payload, &result); err != nil {
-		return Response{}, fmt.Errorf("failed to post to /exchange. Type: %v: %w", actionType, err)
+		return Response{}, fmt.Errorf(
+			"failed to post to /exchange. Type: %v: %w",
+			actionType,
+			err,
+		)
 	}
 
 	return result, err

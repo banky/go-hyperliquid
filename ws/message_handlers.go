@@ -225,7 +225,10 @@ func (m *Client) handleUserNonFundingLedgerUpdates(raw map[string]any) {
 
 	// Try to extract user for identifier
 	if user, ok := dataMap["user"].(string); ok {
-		identifier := fmt.Sprintf("userNonFundingLedgerUpdates:%s", strings.ToLower(user))
+		identifier := fmt.Sprintf(
+			"userNonFundingLedgerUpdates:%s",
+			strings.ToLower(user),
+		)
 		routeMessage(m, identifier, msg)
 	}
 }
@@ -257,10 +260,16 @@ func (m *Client) handleActiveAssetCtx(raw map[string]any, channel string) {
 	if channel == "activeSpotAssetCtx" {
 		var msg ActiveSpotAssetCtxMessage
 		if err := json.Unmarshal(msgBytes, &msg); err != nil {
-			log.Printf("failed to unmarshal activeSpotAssetCtx message: %v", err)
+			log.Printf(
+				"failed to unmarshal activeSpotAssetCtx message: %v",
+				err,
+			)
 			return
 		}
-		identifier := fmt.Sprintf("activeAssetCtx:%s", strings.ToLower(msg.Coin))
+		identifier := fmt.Sprintf(
+			"activeAssetCtx:%s",
+			strings.ToLower(msg.Coin),
+		)
 		routeMessage(m, identifier, msg)
 	} else {
 		var msg ActiveAssetCtxMessage
@@ -286,7 +295,11 @@ func (m *Client) handleActiveAssetData(raw map[string]any) {
 		return
 	}
 
-	identifier := fmt.Sprintf("activeAssetData:%s,%s", strings.ToLower(msg.Coin), strings.ToLower(msg.User))
+	identifier := fmt.Sprintf(
+		"activeAssetData:%s,%s",
+		strings.ToLower(msg.Coin),
+		strings.ToLower(msg.User),
+	)
 	routeMessage(m, identifier, msg)
 }
 
@@ -297,14 +310,23 @@ func routeMessage[T any](m *Client, identifier string, msg T) {
 	m.mu.RUnlock()
 
 	if len(subscriptions) == 0 {
-		log.Printf("websocket message from unexpected subscription: %s", identifier)
+		log.Printf(
+			"websocket message from unexpected subscription: %s",
+			identifier,
+		)
 		return
 	}
 
 	for _, sub := range subscriptions {
 		ch, ok := sub.internalChan.(chan T)
 		if !ok {
-			panic(fmt.Sprintf("subscription internal channel has wrong type for %s (id: %d)", identifier, sub.id))
+			panic(
+				fmt.Sprintf(
+					"subscription internal channel has wrong type for %s (id: %d)",
+					identifier,
+					sub.id,
+				),
+			)
 		}
 
 		ch <- msg

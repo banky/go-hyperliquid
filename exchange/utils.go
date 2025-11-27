@@ -20,7 +20,11 @@ func floatToWire(x float64) (string, error) {
 
 	// Validate rounding precision (tolerance of 1e-12)
 	if math.Abs(x-rounded) > 1e-12 {
-		return "", fmt.Errorf("float precision loss: %v rounds to %v", x, rounded)
+		return "", fmt.Errorf(
+			"float precision loss: %v rounds to %v",
+			x,
+			rounded,
+		)
 	}
 
 	// Format to 8 decimal places and normalize

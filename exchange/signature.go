@@ -51,7 +51,11 @@ func (s *signature) UnmarshalJSON(data []byte) error {
 		return fmt.Errorf("invalid r: %w", err)
 	}
 	if len(rBytes) != len(s.R) {
-		return fmt.Errorf("invalid r length: got %d, want %d", len(rBytes), len(s.R))
+		return fmt.Errorf(
+			"invalid r length: got %d, want %d",
+			len(rBytes),
+			len(s.R),
+		)
 	}
 	copy(s.R[:], rBytes)
 
@@ -61,7 +65,11 @@ func (s *signature) UnmarshalJSON(data []byte) error {
 		return fmt.Errorf("invalid s: %w", err)
 	}
 	if len(sBytes) != len(s.S) {
-		return fmt.Errorf("invalid s length: got %d, want %d", len(sBytes), len(s.S))
+		return fmt.Errorf(
+			"invalid s length: got %d, want %d",
+			len(sBytes),
+			len(s.S),
+		)
 	}
 	copy(s.S[:], sBytes)
 

@@ -64,7 +64,12 @@ func (m *Client) SubscribeCandle(
 	interval string,
 	ch chan<- CandleMessage,
 ) (Subscription, error) {
-	return newWSSubscription(ctx, m, CandleSubscription{Coin: coin, Interval: interval}, ch)
+	return newWSSubscription(
+		ctx,
+		m,
+		CandleSubscription{Coin: coin, Interval: interval},
+		ch,
+	)
 }
 
 // SubscribeOrderUpdates subscribes to order updates
@@ -91,7 +96,12 @@ func (m *Client) SubscribeUserNonFundingLedgerUpdates(
 	user string,
 	ch chan<- UserNonFundingLedgerUpdatesMessage,
 ) (Subscription, error) {
-	return newWSSubscription(ctx, m, UserNonFundingLedgerUpdatesSubscription{User: user}, ch)
+	return newWSSubscription(
+		ctx,
+		m,
+		UserNonFundingLedgerUpdatesSubscription{User: user},
+		ch,
+	)
 }
 
 // SubscribeWebData2 subscribes to web data
@@ -128,7 +138,12 @@ func (m *Client) SubscribeActiveAssetData(
 	user string,
 	ch chan<- ActiveAssetDataMessage,
 ) (Subscription, error) {
-	return newWSSubscription(ctx, m, ActiveAssetDataSubscription{Coin: coin, User: user}, ch)
+	return newWSSubscription(
+		ctx,
+		m,
+		ActiveAssetDataSubscription{Coin: coin, User: user},
+		ch,
+	)
 }
 
 // newWSSubscription sets up a websocket subscription, wires it to ctx,
@@ -199,22 +214,31 @@ func subscribe[T any](
 	// Check for duplicate restrictions
 	if identifier == "userEvents" || identifier == "orderUpdates" {
 		if len(m.activeSubscriptions[identifier]) != 0 {
-			return fmt.Errorf("cannot subscribe to %s multiple times", identifier)
+			return fmt.Errorf(
+				"cannot subscribe to %s multiple times",
+				identifier,
+			)
 		}
 	}
 
 	// Add to active subscriptions
-	m.activeSubscriptions[identifier] = append(m.activeSubscriptions[identifier], &channelSubscription{
-		internalChan: internalChan,
-		id:           id,
-	})
+	m.activeSubscriptions[identifier] = append(
+		m.activeSubscriptions[identifier],
+		&channelSubscription{
+			internalChan: internalChan,
+			id:           id,
+		},
+	)
 
 	// Launch delivery goroutine that forwards from internal channel to subscriber channel
 	go deliveryLoop(internalChan, subscriberChan)
 
 	// Send subscription message to server (if connected)
 	if m.conn != nil {
-		msg := map[string]any{"method": "subscribe", "subscription": sub.subscriptionPayload()}
+		msg := map[string]any{
+			"method":       "subscribe",
+			"subscription": sub.subscriptionPayload(),
+		}
 		data, _ := json.Marshal(msg)
 
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -236,7 +260,11 @@ func deliveryLoop[T any](
 }
 
 // unsubscribeInternal removes a subscription and closes its internal channel
-func unsubscribeInternal[T any](m *Client, sub SubscriptionType, subscriptionID int) bool {
+func unsubscribeInternal[T any](
+	m *Client,
+	sub SubscriptionType,
+	subscriptionID int,
+) bool {
 	m.mu.Lock()
 	identifier := sub.identifier()
 	activeSubscriptions := m.activeSubscriptions[identifier]
@@ -268,7 +296,10 @@ func unsubscribeInternal[T any](m *Client, sub SubscriptionType, subscriptionID 
 
 	// If no more subscriptions for this identifier, send unsubscribe (if connected)
 	if len(newActiveSubscriptions) == 0 && m.conn != nil {
-		msg := map[string]any{"method": "unsubscribe", "subscription": sub.subscriptionPayload()}
+		msg := map[string]any{
+			"method":       "unsubscribe",
+			"subscription": sub.subscriptionPayload(),
+		}
 		data, _ := json.Marshal(msg)
 
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -277,7 +308,10 @@ func unsubscribeInternal[T any](m *Client, sub SubscriptionType, subscriptionID 
 		err := m.conn.Write(ctx, websocket.MessageText, data)
 		if err != nil {
 			// Ignore errors that are clearly “connection is gone”
-			if strings.Contains(err.Error(), "use of closed network connection") ||
+			if strings.Contains(
+				err.Error(),
+				"use of closed network connection",
+			) ||
 				websocket.CloseStatus(err) == websocket.StatusNormalClosure {
 				// maybe log at debug-level if you have such a thing
 			} else {

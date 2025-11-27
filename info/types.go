@@ -37,14 +37,14 @@ type SpotAssetInfo struct {
 
 // SpotTokenInfo contains spot token metadata
 type SpotTokenInfo struct {
-	Name         string `json:"name"`
-	SzDecimals   int    `json:"szDecimals"`
-	WeiDecimals  int    `json:"weiDecimals"`
-	Index        int    `json:"index"`
-	TokenId      string `json:"tokenId"`
-	IsCanonical  bool   `json:"isCanonical"`
-	EvmContract  *string `json:"evmContract"`
-	FullName     *string `json:"fullName"`
+	Name        string  `json:"name"`
+	SzDecimals  int     `json:"szDecimals"`
+	WeiDecimals int     `json:"weiDecimals"`
+	Index       int     `json:"index"`
+	TokenId     string  `json:"tokenId"`
+	IsCanonical bool    `json:"isCanonical"`
+	EvmContract *string `json:"evmContract"`
+	FullName    *string `json:"fullName"`
 }
 
 // SpotMeta contains exchange metadata for spot trading
@@ -57,15 +57,15 @@ type SpotMeta struct {
 
 // Position represents a user's position in a coin
 type Position struct {
-	Coin               string      `json:"coin"`
-	EntryPx            *string     `json:"entryPx"`
-	Leverage           Leverage    `json:"leverage"`
-	LiquidationPx      *string     `json:"liquidationPx"`
-	MarginUsed         string      `json:"marginUsed"`
-	PositionValue      string      `json:"positionValue"`
-	ReturnOnEquity     string      `json:"returnOnEquity"`
-	Szi                string      `json:"szi"`
-	UnrealizedPnl      string      `json:"unrealizedPnl"`
+	Coin           string   `json:"coin"`
+	EntryPx        *string  `json:"entryPx"`
+	Leverage       Leverage `json:"leverage"`
+	LiquidationPx  *string  `json:"liquidationPx"`
+	MarginUsed     string   `json:"marginUsed"`
+	PositionValue  string   `json:"positionValue"`
+	ReturnOnEquity string   `json:"returnOnEquity"`
+	Szi            string   `json:"szi"`
+	UnrealizedPnl  string   `json:"unrealizedPnl"`
 }
 
 // AssetPosition represents a user's position in an asset
@@ -91,10 +91,10 @@ type MarginSummary struct {
 
 // UserState contains detailed trading information about a user
 type UserState struct {
-	AssetPositions       []AssetPosition `json:"assetPositions"`
-	CrossMarginSummary   MarginSummary   `json:"crossMarginSummary"`
-	MarginSummary        MarginSummary   `json:"marginSummary"`
-	Withdrawable         string          `json:"withdrawable"`
+	AssetPositions     []AssetPosition `json:"assetPositions"`
+	CrossMarginSummary MarginSummary   `json:"crossMarginSummary"`
+	MarginSummary      MarginSummary   `json:"marginSummary"`
+	Withdrawable       string          `json:"withdrawable"`
 }
 
 // OpenOrder represents an open order
@@ -109,28 +109,28 @@ type OpenOrder struct {
 
 // Fill represents a fill/executed trade
 type Fill struct {
-	Coin            string `json:"coin"`
-	Px              string `json:"px"`
-	Sz              string `json:"sz"`
-	Side            string `json:"side"`
-	Time            int64  `json:"time"`
-	StartPosition   string `json:"startPosition"`
-	Dir             string `json:"dir"`
-	ClosedPnl       string `json:"closedPnl"`
-	Hash            string `json:"hash"`
-	Oid             int    `json:"oid"`
-	Crossed         bool   `json:"crossed"`
-	Fee             string `json:"fee"`
-	Tid             int    `json:"tid"`
-	FeeToken        string `json:"feeToken"`
+	Coin          string `json:"coin"`
+	Px            string `json:"px"`
+	Sz            string `json:"sz"`
+	Side          string `json:"side"`
+	Time          int64  `json:"time"`
+	StartPosition string `json:"startPosition"`
+	Dir           string `json:"dir"`
+	ClosedPnl     string `json:"closedPnl"`
+	Hash          string `json:"hash"`
+	Oid           int    `json:"oid"`
+	Crossed       bool   `json:"crossed"`
+	Fee           string `json:"fee"`
+	Tid           int    `json:"tid"`
+	FeeToken      string `json:"feeToken"`
 }
 
 // FundingRecord represents a funding payment record
 type FundingRecord struct {
-	Coin         string `json:"coin"`
-	FundingRate  string `json:"fundingRate"`
-	Premium      string `json:"premium"`
-	Time         int64  `json:"time"`
+	Coin        string `json:"coin"`
+	FundingRate string `json:"fundingRate"`
+	Premium     string `json:"premium"`
+	Time        int64  `json:"time"`
 }
 
 // Candle represents candlestick data
