@@ -8,7 +8,6 @@ require (
 	github.com/go-resty/resty/v2 v2.17.0
 	github.com/samber/mo v1.16.0
 	github.com/vmihailenco/msgpack/v5 v5.4.1
-	gopkg.in/dnaeon/go-vcr.v4 v4.0.6
 )
 
 require (
@@ -23,7 +22,6 @@ require (
 	github.com/holiman/uint256 v1.3.2 // indirect
 	github.com/supranational/blst v0.3.16-0.20250831170142-f48500c1fdbe // indirect
 	github.com/vmihailenco/tagparser/v2 v2.0.0 // indirect
-	go.yaml.in/yaml/v4 v4.0.0-rc.3 // indirect
 	golang.org/x/crypto v0.41.0 // indirect
 	golang.org/x/net v0.43.0 // indirect
 	golang.org/x/sync v0.12.0 // indirect
