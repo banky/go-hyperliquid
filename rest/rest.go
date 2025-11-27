@@ -14,11 +14,13 @@ import (
 
 type Client struct {
 	baseUrl string
-	timeout mo.Option[uint]
+	timeout mo.Option[time.Duration]
 }
 
 // ClientInterface defines the contract for REST API calls
 type ClientInterface interface {
+	BaseUrl() string
+	IsMainnet() bool
 	Post(ctx context.Context, path string, body any, result any) error
 }
 
@@ -28,14 +30,14 @@ type Config struct {
 	BaseUrl string
 	// Timeout is the timeout for network requests
 	// If none is provided, no timeout will be enforced
-	Timeout uint
+	Timeout time.Duration
 }
 
 // New creates a new client instance with the
 // provided configuration.
 func New(c Config) *Client {
 	var baseUrl string = c.BaseUrl
-	var timeout mo.Option[uint]
+	var timeout mo.Option[time.Duration]
 
 	if c.BaseUrl == "" {
 		baseUrl = constants.MAINNET_API_URL
@@ -52,6 +54,14 @@ func New(c Config) *Client {
 	return client
 }
 
+func (c *Client) BaseUrl() string {
+	return c.baseUrl
+}
+
+func (c *Client) IsMainnet() bool {
+	return c.baseUrl == constants.MAINNET_API_URL
+}
+
 // Post sends a POST request to the specified path with the provided body.
 func (c *Client) Post(
 	ctx context.Context,
@@ -61,6 +71,7 @@ func (c *Client) Post(
 ) error {
 	r := resty.
 		New().
+		SetDebug(true).
 		SetJSONMarshaler(json.Marshal).
 		SetJSONUnmarshaler(json.Unmarshal)
 
@@ -69,7 +80,7 @@ func (c *Client) Post(
 	// Apply timeout to context if specified
 	if timeout, ok := c.timeout.Get(); ok {
 		var cancel context.CancelFunc
-		ctx, cancel = context.WithTimeout(ctx, time.Duration(timeout)*time.Second)
+		ctx, cancel = context.WithTimeout(ctx, timeout)
 		defer cancel()
 	}
 

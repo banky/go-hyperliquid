@@ -30,9 +30,9 @@ func (e *ServerError) Error() string {
 }
 
 type errorResponse struct {
-	Code string      `json:"code"`
-	Msg  string      `json:"msg"`
-	Data interface{} `json:"data"`
+	Code string `json:"code"`
+	Msg  string `json:"msg"`
+	Data any    `json:"data"`
 }
 
 func handleException(resp *resty.Response) error {

@@ -156,7 +156,7 @@ func TestClientStartStop(t *testing.T) {
 	// Give it time to process the connection message
 	time.Sleep(100 * time.Millisecond)
 
-	client.Stop()
+	client.Close()
 }
 
 // ===== Channel-Based Subscription Tests =====
@@ -207,7 +207,7 @@ func TestChannelSubscription(t *testing.T) {
 	}
 	client.mu.RUnlock()
 
-	client.Stop()
+	client.Close()
 }
 
 // ===== Message Routing Tests =====
@@ -346,7 +346,7 @@ func TestUserEventsDuplicateSubscription(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Start() failed: %v", err)
 	}
-	defer client.Stop()
+	defer client.Close()
 
 	time.Sleep(100 * time.Millisecond)
 
@@ -451,7 +451,7 @@ func TestUnsubscribe(t *testing.T) {
 
 	sub2.Unsubscribe()
 	sub3.Unsubscribe()
-	client.Stop()
+	client.Close()
 }
 
 // ===== Multiple Subscriptions Per Channel =====
@@ -562,7 +562,7 @@ func TestEmptyTradesMessage(t *testing.T) {
 		// This is expected - no message for empty trades
 	}
 
-	client.Stop()
+	client.Close()
 }
 
 func TestMissingDataField(t *testing.T) {
@@ -604,7 +604,7 @@ func TestMissingDataField(t *testing.T) {
 		// This is expected - no message for malformed data
 	}
 
-	client.Stop()
+	client.Close()
 }
 
 func TestSubscriptionPayload(t *testing.T) {

@@ -45,7 +45,7 @@ func (s *subscription) Err() <-chan error {
 // ClientInterface defines the contract for WebSocket subscriptions
 type ClientInterface interface {
 	Start(ctx context.Context) error
-	Stop()
+	Close()
 	SubscribeAllMids(ctx context.Context, ch chan<- AllMidsMessage) (Subscription, error)
 	SubscribeL2Book(ctx context.Context, coin string, ch chan<- L2BookMessage) (Subscription, error)
 	SubscribeTrades(ctx context.Context, coin string, ch chan<- TradesMessage) (Subscription, error)
@@ -127,8 +127,8 @@ func (m *Client) Start(ctx context.Context) error {
 	return nil
 }
 
-// Stop closes the WebSocket connection and cleans up
-func (m *Client) Stop() {
+// Close closes the WebSocket connection and cleans up
+func (m *Client) Close() {
 	close(m.stopChan)
 
 	m.mu.Lock()

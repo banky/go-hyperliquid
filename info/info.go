@@ -4,9 +4,11 @@ import (
 	"context"
 	"fmt"
 	"sync"
+	"time"
 
 	"github.com/banky/go-hyperliquid/rest"
 	"github.com/banky/go-hyperliquid/ws"
+	"github.com/ethereum/go-ethereum/common"
 )
 
 // Info provides access to market data and user account information via REST and WebSocket APIs
@@ -22,9 +24,12 @@ type Info struct {
 
 // Config for initializing the Info client
 type Config struct {
-	BaseURL string
-	Timeout uint
-	SkipWS  bool
+	BaseURL  string
+	Timeout  time.Duration
+	SkipWS   bool
+	Meta     *Meta     // Optional: if nil, will be fetched from API
+	SpotMeta *SpotMeta // Optional: if nil, will be fetched from API
+	PerpDexs []string  // Optional: if empty, defaults to [""] (main DEX)
 }
 
 // New creates a new Info client
@@ -50,21 +55,120 @@ func New(cfg Config) (*Info, error) {
 		assetToSzDecimals: make(map[int]int),
 	}
 
+	// Initialize metadata and coin/asset mappings
+	ctx := context.Background()
+	if err := info.initializeMetadata(ctx, cfg); err != nil {
+		return nil, err
+	}
+
 	return info, nil
 }
 
-// Start initializes the WebSocket connection
-func (i *Info) Start(ctx context.Context) error {
-	if i.ws != nil {
-		return i.ws.Start(ctx)
+// initializeMetadata fetches and processes metadata for building coin/asset mappings
+func (i *Info) initializeMetadata(ctx context.Context, cfg Config) error {
+	// Get or fetch SpotMeta
+	spotMeta := cfg.SpotMeta
+	if spotMeta == nil {
+		fetched, err := i.SpotMeta(ctx)
+		if err != nil {
+			return fmt.Errorf("failed to fetch spot metadata: %w", err)
+		}
+		spotMeta = fetched
 	}
+
+	// Initialize spot coin/asset mappings
+	i.initializeSpotMetadata(spotMeta)
+
+	// Get or set perp DEXs list (default to main DEX if empty)
+	perpDexs := cfg.PerpDexs
+	if len(perpDexs) == 0 {
+		perpDexs = []string{""}
+	}
+
+	// Process each perp DEX
+	for _, dex := range perpDexs {
+		var meta *Meta
+		if dex == "" {
+			// For default DEX, check if meta was provided in config
+			meta = cfg.Meta
+			if meta == nil {
+				// Fetch meta for default DEX
+				fetched, err := i.Meta(ctx, dex)
+				if err != nil {
+					return fmt.Errorf("failed to fetch meta for dex %q: %w", dex, err)
+				}
+				meta = fetched
+			}
+			i.setPerpMeta(meta, 0)
+		} else {
+			// Fetch meta for other DEXs (offset calculation would be handled separately)
+			fetched, err := i.Meta(ctx, dex)
+			if err != nil {
+				return fmt.Errorf("failed to fetch meta for dex %q: %w", dex, err)
+			}
+			// TODO: Calculate correct offset for builder-deployed perp dexs (110000 + i*10000)
+			i.setPerpMeta(fetched, 0)
+		}
+	}
+
 	return nil
 }
 
-// Stop closes the WebSocket connection
-func (i *Info) Stop() {
+// initializeSpotMetadata processes spot metadata to build coin/asset mappings
+func (i *Info) initializeSpotMetadata(spotMeta *SpotMeta) {
+	if spotMeta == nil {
+		return
+	}
+
+	i.mu.Lock()
+	defer i.mu.Unlock()
+
+	// Process spot assets (start at 10000)
+	for _, spot := range spotMeta.Universe {
+		asset := spot.Index + 10000
+		i.coinToAsset[spot.Name] = asset
+		i.nameToCoin[spot.Name] = spot.Name
+
+		// Build friendly name mapping (base/quote format)
+		if len(spot.Tokens) >= 2 {
+			baseID := spot.Tokens[0]
+			quoteID := spot.Tokens[1]
+
+			// Access tokens by index
+			if baseID >= 0 && baseID < len(spotMeta.Tokens) && quoteID >= 0 && quoteID < len(spotMeta.Tokens) {
+				baseInfo := spotMeta.Tokens[baseID]
+				quoteInfo := spotMeta.Tokens[quoteID]
+				friendlyName := fmt.Sprintf("%s/%s", baseInfo.Name, quoteInfo.Name)
+				if _, exists := i.nameToCoin[friendlyName]; !exists {
+					i.nameToCoin[friendlyName] = spot.Name
+				}
+				i.assetToSzDecimals[asset] = baseInfo.SzDecimals
+			}
+		}
+	}
+}
+
+// setPerpMeta processes perpetual metadata for a specific DEX and asset offset
+func (i *Info) setPerpMeta(meta *Meta, offset int) {
+	if meta == nil {
+		return
+	}
+
+	i.mu.Lock()
+	defer i.mu.Unlock()
+
+	for idx, asset := range meta.Universe {
+		assetID := idx + offset
+		i.coinToAsset[asset.Name] = assetID
+		i.nameToCoin[asset.Name] = asset.Name
+		i.assetToSzDecimals[assetID] = asset.SzDecimals
+	}
+}
+
+// Close closes the WebSocket connection
+func (i *Info) Close() {
 	if i.ws != nil {
-		i.ws.Stop()
+		i.ws.Close()
 	}
 }
 
@@ -138,10 +242,28 @@ func (i *Info) SpotMeta(ctx context.Context) (*SpotMeta, error) {
 	return &result, err
 }
 
+// AssetToSzDecimals retrieves the number of decimal places for a given asset.
+func (i *Info) AssetToSzDecimals(asset int) (int, bool) {
+	szDecimals, ok := i.assetToSzDecimals[asset]
+	return szDecimals, ok
+}
+
+// CoinToAsset retrieves the asset ID for a given coin.
+func (i *Info) CoinToAsset(coin string) (int, bool) {
+	assetID, ok := i.coinToAsset[coin]
+	return assetID, ok
+}
+
+// NameToCoin retrieves the coin name for a given asset name.
+func (i *Info) NameToCoin(name string) (string, bool) {
+	coin, ok := i.nameToCoin[name]
+	return coin, ok
+}
+
 // ===== User Account Queries =====
 
 // UserState retrieves account portfolio and position data.
-func (i *Info) UserState(ctx context.Context, address string, dex string) (*UserState, error) {
+func (i *Info) UserState(ctx context.Context, address common.Address, dex string) (*UserState, error) {
 	var result UserState
 	err := i.rest.Post(
 		ctx,

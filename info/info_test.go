@@ -9,6 +9,7 @@ import (
 
 	"github.com/banky/go-hyperliquid/rest"
 	"github.com/banky/go-hyperliquid/ws"
+	"github.com/ethereum/go-ethereum/common"
 )
 
 // Mock REST client for testing
@@ -20,6 +21,14 @@ var _ rest.ClientInterface = (*mockRestClient)(nil)
 
 func (m *mockRestClient) Post(ctx context.Context, path string, body any, result any) error {
 	return m.postFunc(ctx, path, body, result)
+}
+
+func (m *mockRestClient) BaseUrl() string {
+	return ""
+}
+
+func (m *mockRestClient) IsMainnet() bool {
+	return false
 }
 
 // Mock WS client for testing
@@ -46,7 +55,7 @@ func (m *mockWsClient) Start(ctx context.Context) error {
 	return nil
 }
 
-func (m *mockWsClient) Stop() {
+func (m *mockWsClient) Close() {
 	if m.stopFunc != nil {
 		m.stopFunc()
 	}
@@ -361,7 +370,7 @@ func TestUserStateSuccess(t *testing.T) {
 		},
 	}
 
-	state, err := info.UserState(context.Background(), "0x123", "mainnet")
+	state, err := info.UserState(context.Background(), common.HexToAddress("0x123"), "mainnet")
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
