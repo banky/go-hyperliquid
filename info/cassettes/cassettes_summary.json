@@ -1,0 +1,310 @@
+[
+  {
+    "filename": "test_delegator_history",
+    "request_type": "delegatorHistory",
+    "request": {
+      "type": "delegatorHistory",
+      "user": "0x2ba553d9f990a3b66b03b2dc0d030dfc1c061036"
+    },
+    "response_preview": "Array with 4 items, first item: {\"time\": 1751382238782, \"hash\": \"0xaea14981ae79c88826b104269e1e61020161008a69327e1bd0716a870eb0032e\"...",
+    "response_is_array": true,
+    "response_is_object": false
+  },
+  {
+    "filename": "test_extra_agents",
+    "request_type": "extraAgents",
+    "request": {
+      "type": "extraAgents",
+      "user": "0xd42f2bB0e06455eDB652e27b7374FC2bDa8448ee"
+    },
+    "response_preview": "Array with 2 items, first item: {\"name\": \"ok\", \"address\": \"0x286edfa08c04f6899dab3bfdecf2dd133f9733b9\", \"validUntil\": 1767776120478}...",
+    "response_is_array": true,
+    "response_is_object": false
+  },
+  {
+    "filename": "test_get_all_mids",
+    "request_type": "allMids",
+    "request": {
+      "type": "allMids"
+    },
+    "response_preview": "Object with keys: ['APE', 'APT', 'ARB', 'ATOM', 'AVAX', 'BCH', 'BNB', 'BTC', 'CFX', 'CRV', 'DOGE', 'DYDX', 'ETH', 'FTM', 'GMX', 'INJ', 'LDO', 'LINK', 'LTC', 'MATIC', 'OP', 'RNDR', 'SNX', 'SOL', 'STX', 'SUI', 'XRP', 'kPEPE']",
+    "response_is_array": false,
+    "response_is_object": true
+  },
+  {
+    "filename": "test_get_candles_snapshot",
+    "request_type": "meta",
+    "request": {
+      "type": "meta"
+    },
+    "response_preview": "Object with keys: ['universe']",
+    "response_is_array": false,
+    "response_is_object": true
+  },
+  {
+    "filename": "test_get_candles_snapshot",
+    "request_type": "candleSnapshot",
+    "request": {
+      "type": "candleSnapshot",
+      "req": {
+        "coin": "kPEPE",
+        "interval": "1h",
+        "startTime": 1684702007000,
+        "endTime": 1684784807000
+      }
+    },
+    "response_preview": "Array with 24 items, first item: {\"T\": 1684702799999, \"c\": \"0.001604\", \"h\": \"0.001616\", \"i\": \"1h\", \"l\": \"0.001601\", \"n\": 709, \"o\": \"0...",
+    "response_is_array": true,
+    "response_is_object": false
+  },
+  {
+    "filename": "test_get_frontend_open_orders",
+    "request_type": "frontendOpenOrders",
+    "request": {
+      "type": "frontendOpenOrders",
+      "user": "0xCB331197E84f135AB9Ed6FB51Cd9757c0bd29d0D"
+    },
+    "response_preview": "Array with 3 items, first item: {\"children\": [], \"coin\": \"INJ\", \"isPositionTpsl\": false, \"isTrigger\": true, \"limitPx\": \"9.2037\", \"oi...",
+    "response_is_array": true,
+    "response_is_object": false
+  },
+  {
+    "filename": "test_get_funding_history[1684811870000]",
+    "request_type": "meta",
+    "request": {
+      "type": "meta"
+    },
+    "response_preview": "Object with keys: ['universe']",
+    "response_is_array": false,
+    "response_is_object": true
+  },
+  {
+    "filename": "test_get_funding_history[1684811870000]",
+    "request_type": "fundingHistory",
+    "request": {
+      "type": "fundingHistory",
+      "coin": "BTC",
+      "startTime": 1681923833000,
+      "endTime": 1684811870000
+    },
+    "response_preview": "Array with 34 items, first item: {\"coin\": \"BTC\", \"fundingRate\": \"-0.00061334\", \"premium\": \"-0.00091334\", \"time\": 1683849600048}...",
+    "response_is_array": true,
+    "response_is_object": false
+  },
+  {
+    "filename": "test_get_funding_history[None]",
+    "request_type": "meta",
+    "request": {
+      "type": "meta"
+    },
+    "response_preview": "Object with keys: ['universe']",
+    "response_is_array": false,
+    "response_is_object": true
+  },
+  {
+    "filename": "test_get_funding_history[None]",
+    "request_type": "fundingHistory",
+    "request": {
+      "type": "fundingHistory",
+      "coin": "BTC",
+      "startTime": 1681923833000
+    },
+    "response_preview": "Array with 1038 items, first item: {\"coin\": \"BTC\", \"fundingRate\": \"-0.00061334\", \"premium\": \"-0.00091334\", \"time\": 1683849600048}...",
+    "response_is_array": true,
+    "response_is_object": false
+  },
+  {
+    "filename": "test_get_info",
+    "request_type": "meta",
+    "request": {
+      "type": "meta"
+    },
+    "response_preview": "Object with keys: ['universe']",
+    "response_is_array": false,
+    "response_is_object": true
+  },
+  {
+    "filename": "test_get_l2_snapshot",
+    "request_type": "meta",
+    "request": {
+      "type": "meta"
+    },
+    "response_preview": "Object with keys: ['universe']",
+    "response_is_array": false,
+    "response_is_object": true
+  },
+  {
+    "filename": "test_get_l2_snapshot",
+    "request_type": "l2Book",
+    "request": {
+      "type": "l2Book",
+      "coin": "DYDX"
+    },
+    "response_preview": "Object with keys: ['coin', 'levels', 'time']",
+    "response_is_array": false,
+    "response_is_object": true
+  },
+  {
+    "filename": "test_get_open_orders",
+    "request_type": "openOrders",
+    "request": {
+      "type": "openOrders",
+      "user": "0x5e9ee1089755c3435139848e47e6635505d5a13a"
+    },
+    "response_preview": "Array with 196 items, first item: {\"coin\": \"MATIC\", \"limitPx\": \"1.0357\", \"oid\": 62269971, \"side\": \"B\", \"sz\": \"208.7\", \"timestamp\": 167...",
+    "response_is_array": true,
+    "response_is_object": false
+  },
+  {
+    "filename": "test_get_user_fills",
+    "request_type": "userFills",
+    "request": {
+      "type": "userFills",
+      "user": "0xb7b6f3cea3f66bf525f5d8f965f6dbf6d9b017b2"
+    },
+    "response_preview": "Array with 500 items, first item: {\"closedPnl\": \"-0.25686\", \"coin\": \"SUI\", \"crossed\": true, \"dir\": \"Close Long\", \"fee\": \"0.0\", \"hash\":...",
+    "response_is_array": true,
+    "response_is_object": false
+  },
+  {
+    "filename": "test_get_user_fills_by_time",
+    "request_type": "userFillsByTime",
+    "request": {
+      "type": "userFillsByTime",
+      "user": "0xb7b6f3cea3f66bf525f5d8f965f6dbf6d9b017b2",
+      "startTime": 1683245555699,
+      "endTime": 1683245884863
+    },
+    "response_preview": "Array with 500 items, first item: {\"closedPnl\": \"-0.25686\", \"coin\": \"SUI\", \"crossed\": true, \"dir\": \"Close Long\", \"fee\": \"0.0\", \"hash\":...",
+    "response_is_array": true,
+    "response_is_object": false
+  },
+  {
+    "filename": "test_get_user_state",
+    "request_type": "clearinghouseState",
+    "request": {
+      "type": "clearinghouseState",
+      "user": "0x5e9ee1089755c3435139848e47e6635505d5a13a"
+    },
+    "response_preview": "Object with keys: ['assetPositions', 'crossMarginSummary', 'marginSummary', 'withdrawable']",
+    "response_is_array": false,
+    "response_is_object": true
+  },
+  {
+    "filename": "test_historical_orders",
+    "request_type": "historicalOrders",
+    "request": {
+      "type": "historicalOrders",
+      "user": "0x31ca8395cf837de08b24da3f660e77761dfb974b"
+    },
+    "response_preview": "Array with 5 items, first item: {\"order\": {\"coin\": \"TON\", \"side\": \"B\", \"limitPx\": \"3.2502\", \"sz\": \"81.7\", \"oid\": 141682155424, \"time...",
+    "response_is_array": true,
+    "response_is_object": false
+  },
+  {
+    "filename": "test_portfolio",
+    "request_type": "portfolio",
+    "request": {
+      "type": "portfolio",
+      "user": "0x31ca8395cf837de08b24da3f660e77761dfb974b"
+    },
+    "response_preview": "Array with 8 items, first item: [\"day\", {\"accountValueHistory\": [[1755772320063, \"160794563.9261809886\"], [1755780720022, \"160690871...",
+    "response_is_array": true,
+    "response_is_object": false
+  },
+  {
+    "filename": "test_user_funding_history_with_end_time",
+    "request_type": "userFunding",
+    "request": {
+      "type": "userFunding",
+      "user": "0xb7b6f3cea3f66bf525f5d8f965f6dbf6d9b017b2",
+      "startTime": 1681923833000,
+      "endTime": 1682010233000
+    },
+    "response_preview": "Array with 13 items, first item: {\"delta\": {\"coin\": \"APE\", \"fundingRate\": \"-0.00029319\", \"nSamples\": 3, \"szi\": \"40.13333333\", \"type\":...",
+    "response_is_array": true,
+    "response_is_object": false
+  },
+  {
+    "filename": "test_user_funding_history_without_end_time",
+    "request_type": "userFunding",
+    "request": {
+      "type": "userFunding",
+      "user": "0xb7b6f3cea3f66bf525f5d8f965f6dbf6d9b017b2",
+      "startTime": 1681923833000
+    },
+    "response_preview": "Array with 218 items, first item: {\"delta\": {\"coin\": \"APE\", \"fundingRate\": \"-0.00029319\", \"nSamples\": 3, \"szi\": \"40.13333333\", \"type\":...",
+    "response_is_array": true,
+    "response_is_object": false
+  },
+  {
+    "filename": "test_user_non_funding_ledger_updates_with_end_time",
+    "request_type": "userNonFundingLedgerUpdates",
+    "request": {
+      "type": "userNonFundingLedgerUpdates",
+      "user": "0x2ba553d9f990a3b66b03b2dc0d030dfc1c061036",
+      "startTime": 1681923833000,
+      "endTime": 1682010233000
+    },
+    "response_preview": "Array with 0 items",
+    "response_is_array": true,
+    "response_is_object": false
+  },
+  {
+    "filename": "test_user_non_funding_ledger_updates_without_end_time",
+    "request_type": "userNonFundingLedgerUpdates",
+    "request": {
+      "type": "userNonFundingLedgerUpdates",
+      "user": "0x2ba553d9f990a3b66b03b2dc0d030dfc1c061036",
+      "startTime": 1681923833000,
+      "endTime": null
+    },
+    "response_preview": "Array with 5 items, first item: {\"time\": 1731999196516, \"hash\": \"0x09ddd9f712b5df0945af34b055bbb3329c88ca001aff41bbfd4341d80bc760ce\"...",
+    "response_is_array": true,
+    "response_is_object": false
+  },
+  {
+    "filename": "test_user_rate_limit",
+    "request_type": "userRateLimit",
+    "request": {
+      "type": "userRateLimit",
+      "user": "0x31ca8395cf837de08b24da3f660e77761dfb974b"
+    },
+    "response_preview": "Object with keys: ['cumVlm', 'nRequestsUsed', 'nRequestsCap']",
+    "response_is_array": false,
+    "response_is_object": true
+  },
+  {
+    "filename": "test_user_role",
+    "request_type": "userRole",
+    "request": {
+      "type": "userRole",
+      "user": "0x31ca8395cf837de08b24da3f660e77761dfb974b"
+    },
+    "response_preview": "Object with keys: ['role']",
+    "response_is_array": false,
+    "response_is_object": true
+  },
+  {
+    "filename": "test_user_twap_slice_fills",
+    "request_type": "userTwapSliceFills",
+    "request": {
+      "type": "userTwapSliceFills",
+      "user": "0x31ca8395cf837de08b24da3f660e77761dfb974b"
+    },
+    "response_preview": "Array with 0 items",
+    "response_is_array": true,
+    "response_is_object": false
+  },
+  {
+    "filename": "test_user_vault_equities",
+    "request_type": "userVaultEquities",
+    "request": {
+      "type": "userVaultEquities",
+      "user": "0x2b804617c6f63c040377e95bb276811747006f4b"
+    },
+    "response_preview": "Array with 2 items, first item: {\"vaultAddress\": \"0x07fd993f0fa3a185f7207adccd29f7a87404689d\", \"equity\": \"688536.0314879999\", \"locke...",
+    "response_is_array": true,
+    "response_is_object": false
+  }
+]

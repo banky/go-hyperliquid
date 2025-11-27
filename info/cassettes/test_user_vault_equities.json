@@ -1,0 +1,12 @@
+[
+  {
+    "vaultAddress": "0x07fd993f0fa3a185f7207adccd29f7a87404689d",
+    "equity": "688536.0314879999",
+    "lockedUntilTimestamp": 1737697731869
+  },
+  {
+    "vaultAddress": "0x7f6ce756bdee0db22a8fbda15aa48023aae5a8be",
+    "equity": "100.003834",
+    "lockedUntilTimestamp": 1749857239300
+  }
+]

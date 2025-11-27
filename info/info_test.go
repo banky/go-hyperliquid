@@ -358,7 +358,7 @@ func TestUserStateSuccess(t *testing.T) {
 				if req["type"] != "clearinghouseState" {
 					t.Errorf("expected type clearinghouseState, got %v", req["type"])
 				}
-				if req["user"] != "0x123" {
+				if req["user"] != common.HexToAddress("0x123") {
 					t.Errorf("expected user 0x123, got %v", req["user"])
 				}
 				if req["dex"] != "mainnet" {

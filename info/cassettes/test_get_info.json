@@ -1,0 +1,144 @@
+{
+  "universe": [
+    {
+      "maxLeverage": 50,
+      "name": "BTC",
+      "szDecimals": 5
+    },
+    {
+      "maxLeverage": 50,
+      "name": "ETH",
+      "szDecimals": 4
+    },
+    {
+      "maxLeverage": 50,
+      "name": "ATOM",
+      "szDecimals": 2
+    },
+    {
+      "maxLeverage": 50,
+      "name": "MATIC",
+      "szDecimals": 1
+    },
+    {
+      "maxLeverage": 50,
+      "name": "DYDX",
+      "szDecimals": 1
+    },
+    {
+      "maxLeverage": 50,
+      "name": "SOL",
+      "szDecimals": 2
+    },
+    {
+      "maxLeverage": 50,
+      "name": "AVAX",
+      "szDecimals": 2
+    },
+    {
+      "maxLeverage": 50,
+      "name": "BNB",
+      "szDecimals": 3
+    },
+    {
+      "maxLeverage": 50,
+      "name": "APE",
+      "szDecimals": 1
+    },
+    {
+      "maxLeverage": 50,
+      "name": "OP",
+      "szDecimals": 1
+    },
+    {
+      "maxLeverage": 50,
+      "name": "LTC",
+      "szDecimals": 2
+    },
+    {
+      "maxLeverage": 50,
+      "name": "ARB",
+      "szDecimals": 1
+    },
+    {
+      "maxLeverage": 50,
+      "name": "DOGE",
+      "szDecimals": 0
+    },
+    {
+      "maxLeverage": 50,
+      "name": "INJ",
+      "szDecimals": 1
+    },
+    {
+      "maxLeverage": 50,
+      "name": "SUI",
+      "szDecimals": 1
+    },
+    {
+      "maxLeverage": 50,
+      "name": "kPEPE",
+      "szDecimals": 0
+    },
+    {
+      "maxLeverage": 50,
+      "name": "CRV",
+      "szDecimals": 1
+    },
+    {
+      "maxLeverage": 50,
+      "name": "LDO",
+      "szDecimals": 1
+    },
+    {
+      "maxLeverage": 50,
+      "name": "LINK",
+      "szDecimals": 1
+    },
+    {
+      "maxLeverage": 50,
+      "name": "STX",
+      "szDecimals": 1
+    },
+    {
+      "maxLeverage": 50,
+      "name": "RNDR",
+      "szDecimals": 1
+    },
+    {
+      "maxLeverage": 50,
+      "name": "CFX",
+      "szDecimals": 0
+    },
+    {
+      "maxLeverage": 50,
+      "name": "FTM",
+      "szDecimals": 0
+    },
+    {
+      "maxLeverage": 50,
+      "name": "GMX",
+      "szDecimals": 2
+    },
+    {
+      "maxLeverage": 50,
+      "name": "SNX",
+      "szDecimals": 1
+    },
+    {
+      "maxLeverage": 50,
+      "name": "XRP",
+      "szDecimals": 0
+    },
+    {
+      "maxLeverage": 50,
+      "name": "BCH",
+      "szDecimals": 3
+    },
+    {
+      "maxLeverage": 50,
+      "name": "APT",
+      "szDecimals": 2
+    }
+  ]
+}

@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 )
 
 type testRequest struct {
@@ -144,7 +145,7 @@ func TestPostWithTimeout(t *testing.T) {
 	defer server.Close()
 
 	// Create client with 5 second timeout (more than enough for fast server)
-	client := New(Config{BaseUrl: server.URL, Timeout: 5})
+	client := New(Config{BaseUrl: server.URL, Timeout: time.Second * 5})
 	var result testResponse
 	err := client.Post(context.Background(), "/test", testRequest{Name: "test"}, &result)
 
