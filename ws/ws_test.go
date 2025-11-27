@@ -15,6 +15,7 @@ import (
 // ===== Subscription Identifier Tests =====
 
 func TestSubscriptionIdentifiers(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name       string
 		sub        SubscriptionType
@@ -141,6 +142,7 @@ func (s *mockWSServer) close() {
 // ===== Client Lifecycle Tests =====
 
 func TestClientStartStop(t *testing.T) {
+	t.Parallel()
 	server := newMockWSServer(t)
 	defer server.close()
 
@@ -162,6 +164,7 @@ func TestClientStartStop(t *testing.T) {
 // ===== Channel-Based Subscription Tests =====
 
 func TestChannelSubscription(t *testing.T) {
+	t.Parallel()
 	server := newMockWSServer(t)
 	defer server.close()
 
@@ -213,6 +216,7 @@ func TestChannelSubscription(t *testing.T) {
 // ===== Message Routing Tests =====
 
 func TestL2BookMessageRouting(t *testing.T) {
+	t.Parallel()
 	// Focus on testing message routing logic with predictable setup
 	// client := New("http://localhost:8000") // URL doesn't matter, won't connect
 
@@ -277,6 +281,7 @@ func TestL2BookMessageRouting(t *testing.T) {
 }
 
 func TestTradesMessageRouting(t *testing.T) {
+	t.Parallel()
 	server := newMockWSServer(t)
 	defer server.close()
 
@@ -336,6 +341,7 @@ func TestTradesMessageRouting(t *testing.T) {
 // ===== Multiplexing Constraint Tests =====
 
 func TestUserEventsDuplicateSubscription(t *testing.T) {
+	t.Parallel()
 	server := newMockWSServer(t)
 	defer server.close()
 
@@ -383,6 +389,7 @@ func TestUserEventsDuplicateSubscription(t *testing.T) {
 // ===== Add/Remove Subscription Tests =====
 
 func TestUnsubscribe(t *testing.T) {
+	t.Parallel()
 	server := newMockWSServer(t)
 	defer server.close()
 
@@ -457,6 +464,7 @@ func TestUnsubscribe(t *testing.T) {
 // ===== Multiple Subscriptions Per Channel =====
 
 func TestMultipleSubscriptionsPerChannel(t *testing.T) {
+	t.Parallel()
 	server := newMockWSServer(t)
 	defer server.close()
 
@@ -524,6 +532,7 @@ func TestMultipleSubscriptionsPerChannel(t *testing.T) {
 // ===== Edge Cases =====
 
 func TestEmptyTradesMessage(t *testing.T) {
+	t.Parallel()
 	server := newMockWSServer(t)
 	defer server.close()
 
@@ -566,6 +575,7 @@ func TestEmptyTradesMessage(t *testing.T) {
 }
 
 func TestMissingDataField(t *testing.T) {
+	t.Parallel()
 	server := newMockWSServer(t)
 	defer server.close()
 
@@ -608,6 +618,7 @@ func TestMissingDataField(t *testing.T) {
 }
 
 func TestSubscriptionPayload(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name         string
 		sub          SubscriptionType

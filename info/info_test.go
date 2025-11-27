@@ -127,6 +127,7 @@ func (m *mockWsClient) SubscribeOrderUpdates(ctx context.Context, user string, c
 // ===== REST API Tests =====
 
 func TestAllMidsSuccess(t *testing.T) {
+	t.Parallel()
 	expectedMids := map[string]string{
 		"BTC": "45000.50",
 		"ETH": "3000.25",
@@ -168,6 +169,7 @@ func TestAllMidsSuccess(t *testing.T) {
 }
 
 func TestAllMidsError(t *testing.T) {
+	t.Parallel()
 	expectedErr := errors.New("network error")
 	info := &Info{
 		rest: &mockRestClient{
@@ -184,6 +186,7 @@ func TestAllMidsError(t *testing.T) {
 }
 
 func TestL2SnapshotSuccess(t *testing.T) {
+	t.Parallel()
 	expectedSnapshot := &L2BookSnapshot{
 		Coin: "BTC",
 		Levels: [2][]L2Level{
@@ -233,6 +236,7 @@ func TestL2SnapshotSuccess(t *testing.T) {
 }
 
 func TestL2SnapshotNameMapping(t *testing.T) {
+	t.Parallel()
 	expectedSnapshot := &L2BookSnapshot{
 		Coin:   "BTC",
 		Levels: [2][]L2Level{},
@@ -265,6 +269,7 @@ func TestL2SnapshotNameMapping(t *testing.T) {
 }
 
 func TestMetaSuccess(t *testing.T) {
+	t.Parallel()
 	expectedMeta := &Meta{
 		Universe: []AssetInfo{
 			{Name: "BTC", SzDecimals: 8},
@@ -302,6 +307,7 @@ func TestMetaSuccess(t *testing.T) {
 }
 
 func TestSpotMetaSuccess(t *testing.T) {
+	t.Parallel()
 	expectedMeta := &SpotMeta{
 		Universe: []SpotAssetInfo{
 			{Name: "USDC", Tokens: [2]int{0, 1}, Index: 0, IsCanonical: true},
@@ -335,6 +341,7 @@ func TestSpotMetaSuccess(t *testing.T) {
 }
 
 func TestUserStateSuccess(t *testing.T) {
+	t.Parallel()
 	expectedState := &UserState{
 		AssetPositions: []AssetPosition{
 			{
@@ -384,6 +391,7 @@ func TestUserStateSuccess(t *testing.T) {
 }
 
 func TestOpenOrdersSuccess(t *testing.T) {
+	t.Parallel()
 	expectedOrders := []OpenOrder{
 		{Coin: "BTC", LimitPx: "45000", Oid: 1, Side: "A", Sz: "1", Timestamp: 1234567890},
 		{Coin: "ETH", LimitPx: "3000", Oid: 2, Side: "B", Sz: "10", Timestamp: 1234567891},
@@ -413,6 +421,7 @@ func TestOpenOrdersSuccess(t *testing.T) {
 }
 
 func TestUserFillsSuccess(t *testing.T) {
+	t.Parallel()
 	expectedFills := []Fill{
 		{Coin: "BTC", Px: "45000", Sz: "1", Side: "A", Time: 1234567890, Oid: 1},
 		{Coin: "ETH", Px: "3000", Sz: "10", Side: "B", Time: 1234567891, Oid: 2},
@@ -442,6 +451,7 @@ func TestUserFillsSuccess(t *testing.T) {
 }
 
 func TestUserFillsByTimeSuccess(t *testing.T) {
+	t.Parallel()
 	expectedFills := []Fill{
 		{Coin: "BTC", Px: "45000", Sz: "1", Side: "A", Time: 1234567890, Oid: 1},
 	}
@@ -480,6 +490,7 @@ func TestUserFillsByTimeSuccess(t *testing.T) {
 }
 
 func TestFundingHistorySuccess(t *testing.T) {
+	t.Parallel()
 	expectedHistory := []FundingRecord{
 		{Coin: "BTC", FundingRate: "0.0001", Premium: "100", Time: 1234567890},
 	}
@@ -512,6 +523,7 @@ func TestFundingHistorySuccess(t *testing.T) {
 }
 
 func TestCandlesSnapshotSuccess(t *testing.T) {
+	t.Parallel()
 	expectedCandles := []Candle{
 		{T: 1234567890, O: "45000", C: "45500", H: "46000", L: "44500", V: "100", N: 50, S: "BTC", I: "1h"},
 	}
@@ -541,6 +553,7 @@ func TestCandlesSnapshotSuccess(t *testing.T) {
 }
 
 func TestUserFeesSuccess(t *testing.T) {
+	t.Parallel()
 	expectedFees := map[string]any{
 		"takerFee":  "0.0002",
 		"makerFee":  "0.0001",
@@ -573,6 +586,7 @@ func TestUserFeesSuccess(t *testing.T) {
 // ===== WebSocket Subscription Tests =====
 
 func TestSubscribeAllMidsNoWS(t *testing.T) {
+	t.Parallel()
 	info := &Info{}
 
 	ch := make(chan ws.AllMidsMessage)
@@ -586,6 +600,7 @@ func TestSubscribeAllMidsNoWS(t *testing.T) {
 }
 
 func TestSubscribeAllMidsSuccess(t *testing.T) {
+	t.Parallel()
 	mockWS := &mockWsClient{
 		subscribeAllMidsFunc: func(ctx context.Context, ch chan<- ws.AllMidsMessage) (ws.Subscription, error) {
 			return &mockSubscription{}, nil
@@ -606,6 +621,7 @@ func TestSubscribeAllMidsSuccess(t *testing.T) {
 }
 
 func TestSubscribeL2BookSuccess(t *testing.T) {
+	t.Parallel()
 	mockWS := &mockWsClient{
 		subscribeL2BookFunc: func(ctx context.Context, coin string, ch chan<- ws.L2BookMessage) (ws.Subscription, error) {
 			if coin != "BTC" {
@@ -632,6 +648,7 @@ func TestSubscribeL2BookSuccess(t *testing.T) {
 }
 
 func TestSubscribeTradesSuccess(t *testing.T) {
+	t.Parallel()
 	mockWS := &mockWsClient{
 		subscribeTradesFunc: func(ctx context.Context, coin string, ch chan<- ws.TradesMessage) (ws.Subscription, error) {
 			return &mockSubscription{}, nil
@@ -655,6 +672,7 @@ func TestSubscribeTradesSuccess(t *testing.T) {
 }
 
 func TestSubscribeCandleSuccess(t *testing.T) {
+	t.Parallel()
 	mockWS := &mockWsClient{
 		subscribeCandleFunc: func(ctx context.Context, coin string, interval string, ch chan<- ws.CandleMessage) (ws.Subscription, error) {
 			if interval != "1h" {
@@ -681,6 +699,7 @@ func TestSubscribeCandleSuccess(t *testing.T) {
 }
 
 func TestSubscribeBboSuccess(t *testing.T) {
+	t.Parallel()
 	mockWS := &mockWsClient{
 		subscribeBboFunc: func(ctx context.Context, coin string, ch chan<- ws.BboMessage) (ws.Subscription, error) {
 			return &mockSubscription{}, nil
@@ -704,6 +723,7 @@ func TestSubscribeBboSuccess(t *testing.T) {
 }
 
 func TestSubscribeActiveAssetCtxSuccess(t *testing.T) {
+	t.Parallel()
 	mockWS := &mockWsClient{
 		subscribeActiveAssetCtxFunc: func(ctx context.Context, coin string, ch chan<- ws.ActiveAssetCtxMessage) (ws.Subscription, error) {
 			return &mockSubscription{}, nil
@@ -727,6 +747,7 @@ func TestSubscribeActiveAssetCtxSuccess(t *testing.T) {
 }
 
 func TestSubscribeUserEventsSuccess(t *testing.T) {
+	t.Parallel()
 	mockWS := &mockWsClient{
 		subscribeUserEventsFunc: func(ctx context.Context, user string, ch chan<- ws.UserEventsMessage) (ws.Subscription, error) {
 			if user != "0x123" {
@@ -750,6 +771,7 @@ func TestSubscribeUserEventsSuccess(t *testing.T) {
 }
 
 func TestSubscribeUserFillsSuccess(t *testing.T) {
+	t.Parallel()
 	mockWS := &mockWsClient{
 		subscribeUserFillsFunc: func(ctx context.Context, user string, ch chan<- ws.UserFillsMessage) (ws.Subscription, error) {
 			return &mockSubscription{}, nil
@@ -770,6 +792,7 @@ func TestSubscribeUserFillsSuccess(t *testing.T) {
 }
 
 func TestSubscribeOrderUpdatesSuccess(t *testing.T) {
+	t.Parallel()
 	mockWS := &mockWsClient{
 		subscribeOrderUpdatesFunc: func(ctx context.Context, user string, ch chan<- ws.OrderUpdatesMessage) (ws.Subscription, error) {
 			return &mockSubscription{}, nil
@@ -792,6 +815,7 @@ func TestSubscribeOrderUpdatesSuccess(t *testing.T) {
 // ===== Coin/Asset Management Tests =====
 
 func TestSetCoinMapping(t *testing.T) {
+	t.Parallel()
 	info := &Info{
 		nameToCoin: make(map[string]string),
 	}
@@ -807,6 +831,7 @@ func TestSetCoinMapping(t *testing.T) {
 }
 
 func TestGetCoinFromNameFound(t *testing.T) {
+	t.Parallel()
 	info := &Info{
 		nameToCoin: map[string]string{
 			"Bitcoin":  "BTC",
@@ -824,6 +849,7 @@ func TestGetCoinFromNameFound(t *testing.T) {
 }
 
 func TestGetCoinFromNameNotFound(t *testing.T) {
+	t.Parallel()
 	info := &Info{
 		nameToCoin: map[string]string{},
 	}
@@ -835,6 +861,7 @@ func TestGetCoinFromNameNotFound(t *testing.T) {
 }
 
 func TestGetAssetFound(t *testing.T) {
+	t.Parallel()
 	info := &Info{
 		coinToAsset: map[string]int{"BTC": 0, "ETH": 1},
 		nameToCoin:  map[string]string{"Bitcoin": "BTC"},
@@ -850,6 +877,7 @@ func TestGetAssetFound(t *testing.T) {
 }
 
 func TestGetAssetNotFound(t *testing.T) {
+	t.Parallel()
 	info := &Info{
 		coinToAsset: map[string]int{},
 		nameToCoin:  map[string]string{},
@@ -862,6 +890,7 @@ func TestGetAssetNotFound(t *testing.T) {
 }
 
 func TestPullRealData(t *testing.T) {
+	t.Parallel()
 	// Manual test
 	t.Skip()
 	info, err := New(Config{})

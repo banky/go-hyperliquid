@@ -166,6 +166,7 @@ func loadCassetteFile(name string) ([]byte, error) {
 // ===== Cassette-Based Tests (from Python test suite) =====
 
 func TestCassette_AllMids(t *testing.T) {
+	t.Parallel()
 	client := loadCassettes(t, "test_get_all_mids")
 	info := &Info{rest: client}
 
@@ -197,6 +198,7 @@ func TestCassette_AllMids(t *testing.T) {
 }
 
 func TestCassette_UserState(t *testing.T) {
+	t.Parallel()
 	client := loadCassettes(t, "test_get_user_state")
 	info := &Info{rest: client}
 
@@ -215,6 +217,7 @@ func TestCassette_UserState(t *testing.T) {
 }
 
 func TestCassette_OpenOrders(t *testing.T) {
+	t.Parallel()
 	client := loadCassettes(t, "test_get_open_orders")
 	info := &Info{rest: client}
 
@@ -230,6 +233,7 @@ func TestCassette_OpenOrders(t *testing.T) {
 }
 
 func TestCassette_AllMidsWithNames(t *testing.T) {
+	t.Parallel()
 	client := loadCassettes(t, "test_get_all_mids")
 	info := &Info{rest: client}
 
@@ -248,6 +252,7 @@ func TestCassette_AllMidsWithNames(t *testing.T) {
 }
 
 func TestCassette_AllMidsCoinsPresent(t *testing.T) {
+	t.Parallel()
 	client := loadCassettes(t, "test_get_all_mids")
 	info := &Info{rest: client}
 
@@ -272,6 +277,7 @@ func TestCassette_AllMidsCoinsPresent(t *testing.T) {
 }
 
 func TestCassette_UserFills(t *testing.T) {
+	t.Parallel()
 	client := loadCassettes(t, "test_get_user_fills")
 	info := &Info{rest: client}
 
@@ -294,6 +300,7 @@ func TestCassette_UserFills(t *testing.T) {
 }
 
 func TestCassette_UserFillsByTime(t *testing.T) {
+	t.Parallel()
 	client := loadCassettes(t, "test_get_user_fills_by_time")
 	info := &Info{rest: client}
 
@@ -309,6 +316,7 @@ func TestCassette_UserFillsByTime(t *testing.T) {
 }
 
 func TestCassette_Meta(t *testing.T) {
+	t.Parallel()
 	client := loadCassettes(t, "test_get_info")
 	info := &Info{rest: client}
 
@@ -330,6 +338,7 @@ func TestCassette_Meta(t *testing.T) {
 }
 
 func TestCassette_FundingHistory(t *testing.T) {
+	t.Parallel()
 	client := loadCassettes(t, "test_get_funding_history[None]")
 	info := &Info{rest: client}
 
@@ -358,6 +367,7 @@ func TestCassette_FundingHistory(t *testing.T) {
 }
 
 func TestCassette_L2Snapshot(t *testing.T) {
+	t.Parallel()
 	client := loadCassettes(t, "test_get_l2_snapshot")
 	info := &Info{rest: client, nameToCoin: map[string]string{"DYDX": "DYDX"}}
 
@@ -382,6 +392,7 @@ func TestCassette_L2Snapshot(t *testing.T) {
 }
 
 func TestCassette_CandlesSnapshot(t *testing.T) {
+	t.Parallel()
 	client := loadCassettes(t, "test_get_candles_snapshot")
 	info := &Info{rest: client, nameToCoin: map[string]string{"kPEPE": "kPEPE"}}
 
@@ -410,6 +421,7 @@ func TestCassette_CandlesSnapshot(t *testing.T) {
 }
 
 func TestCassette_UserFundingHistory(t *testing.T) {
+	t.Parallel()
 	client := loadCassettes(t, "test_user_funding_history_with_end_time")
 	info := &Info{rest: client}
 

@@ -6,6 +6,7 @@ import (
 )
 
 func TestFloatToWire_Success(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name     string
 		input    float64
@@ -67,6 +68,7 @@ func TestFloatToWire_Success(t *testing.T) {
 }
 
 func TestFloatToWire_Error(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name  string
 		input float64
@@ -102,6 +104,7 @@ func TestFloatToWire_Error(t *testing.T) {
 }
 
 func TestStringToFloat(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name       string
 		input      string
@@ -155,6 +158,7 @@ func TestStringToFloat(t *testing.T) {
 }
 
 func TestRoundToSigfig(t *testing.T) {
+	t.Parallel()
 	type args struct {
 		x float64
 		n int
@@ -206,6 +210,7 @@ func TestRoundToSigfig(t *testing.T) {
 }
 
 func TestRoundToDecimals(t *testing.T) {
+	t.Parallel()
 	type args struct {
 		x        float64
 		decimals int
@@ -262,6 +267,7 @@ func TestRoundToDecimals(t *testing.T) {
 }
 
 func TestGetDex(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		input string
 		want  string

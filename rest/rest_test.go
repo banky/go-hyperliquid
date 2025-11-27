@@ -19,6 +19,7 @@ type testResponse struct {
 }
 
 func TestPostSuccess(t *testing.T) {
+	t.Parallel()
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(testResponse{Status: "ok", Value: 42})
@@ -38,6 +39,7 @@ func TestPostSuccess(t *testing.T) {
 }
 
 func TestPostClientErrorWithJSON(t *testing.T) {
+	t.Parallel()
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusBadRequest)
 		w.Header().Set("Content-Type", "application/json")
@@ -80,6 +82,7 @@ func TestPostClientErrorWithJSON(t *testing.T) {
 }
 
 func TestPostClientErrorWithoutJSON(t *testing.T) {
+	t.Parallel()
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusUnauthorized)
 		w.Write([]byte("Unauthorized"))
@@ -109,6 +112,7 @@ func TestPostClientErrorWithoutJSON(t *testing.T) {
 }
 
 func TestPostServerError(t *testing.T) {
+	t.Parallel()
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
 		w.Write([]byte("Internal Server Error"))
@@ -138,6 +142,7 @@ func TestPostServerError(t *testing.T) {
 }
 
 func TestPostWithTimeout(t *testing.T) {
+	t.Parallel()
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(testResponse{Status: "ok", Value: 42})
