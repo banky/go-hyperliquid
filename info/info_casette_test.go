@@ -144,7 +144,8 @@ func loadCassettes(
 			t.Fatalf("failed to load cassette %s: %v", testName, err)
 		}
 
-		// Also register the cassette under the request type key for automatic lookup
+		// Also register the cassette under the request type key for automatic
+		// lookup
 		// Register common mappings
 		if testName == "test_get_all_mids" {
 			client.registerCassette("allMids", testName)
@@ -318,7 +319,8 @@ func TestCassette_UserFills(t *testing.T) {
 		t.Fatalf("expected no error, got %v", err)
 	}
 
-	// From Python test: checks response is a list and first fill has "crossed" = true
+	// From Python test: checks response is a list and first fill has "crossed"
+	// = true
 	if response == nil {
 		t.Fatal("expected response to be non-nil")
 	}

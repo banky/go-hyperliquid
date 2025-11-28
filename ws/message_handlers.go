@@ -7,7 +7,8 @@ import (
 	"strings"
 )
 
-// handleMessage processes an incoming WebSocket message and routes it to callbacks
+// handleMessage processes an incoming WebSocket message and routes it to
+// callbacks
 func (m *Client) handleMessage(data []byte) {
 	var raw map[string]any
 	if err := json.Unmarshal(data, &raw); err != nil {
@@ -303,7 +304,8 @@ func (m *Client) handleActiveAssetData(raw map[string]any) {
 	routeMessage(m, identifier, msg)
 }
 
-// routeMessage routes a message to all subscriptions registered for that identifier
+// routeMessage routes a message to all subscriptions registered for that
+// identifier
 func routeMessage[T any](m *Client, identifier string, msg T) {
 	m.mu.RLock()
 	subscriptions := m.activeSubscriptions[identifier]

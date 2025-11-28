@@ -2,6 +2,7 @@ package exchange
 
 import (
 	"fmt"
+	"math/big"
 	"strings"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -67,6 +68,18 @@ type Cloid common.Hash
 // OidOrCloid represents either an order ID or a CLOID
 type OidOrCloid any
 
+// UserWeiPair represents a user address and wei amount
+type UserWeiPair struct {
+	User common.Address
+	Wei  *big.Int
+}
+
+// TokenWeiPair represents a token ID and wei amount
+type TokenWeiPair struct {
+	Token int
+	Wei   *big.Int
+}
+
 // ModifyRequest represents a modify order request
 type ModifyRequest struct {
 	OID   OidOrCloid
@@ -112,7 +125,10 @@ type cancelByCloidWire struct {
 }
 
 // NewCancelRequestWithCloid creates a new cancel request with a CLOID
-func NewCancelRequestByCloid(coin string, cloid common.Hash) CancelRequestByCloid {
+func NewCancelRequestByCloid(
+	coin string,
+	cloid common.Hash,
+) CancelRequestByCloid {
 	return CancelRequestByCloid{
 		Coin:  coin,
 		Cloid: cloid,
@@ -187,7 +203,9 @@ func (c CancelRequest) toCancelWire(assetId int) cancelWire {
 	}
 }
 
-func (c CancelRequestByCloid) toCancelByCloidWire(assetId int) cancelByCloidWire {
+func (c CancelRequestByCloid) toCancelByCloidWire(
+	assetId int,
+) cancelByCloidWire {
 	return cancelByCloidWire{
 		AssetId: int64(assetId),
 		Cloid:   c.Cloid,
@@ -219,7 +237,8 @@ func cancelsToAction(cancels []cancelWire) map[string]any {
 	}
 }
 
-// cancelsByCloidToAction converts a list of CancelRequestsByCloid to a cancelByCloid action
+// cancelsByCloidToAction converts a list of CancelRequestsByCloid to a
+// cancelByCloid action
 func cancelsByCloidToAction(cancels []cancelByCloidWire) map[string]any {
 	return map[string]any{
 		"type":    "cancelByCloid",

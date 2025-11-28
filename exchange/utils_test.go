@@ -372,15 +372,31 @@ func TestFloatToInt(t *testing.T) {
 			got, err := floatToInt(tt.x, tt.power)
 			if tt.wantErr {
 				if err == nil {
-					t.Fatalf("floatToInt(%v, %d) expected error, got nil (value %v)", tt.x, tt.power, got)
+					t.Fatalf(
+						"floatToInt(%v, %d) expected error, got nil (value %v)",
+						tt.x,
+						tt.power,
+						got,
+					)
 				}
 				return
 			}
 			if err != nil {
-				t.Fatalf("floatToInt(%v, %d) unexpected error: %v", tt.x, tt.power, err)
+				t.Fatalf(
+					"floatToInt(%v, %d) unexpected error: %v",
+					tt.x,
+					tt.power,
+					err,
+				)
 			}
 			if got != tt.want {
-				t.Fatalf("floatToInt(%v, %d) = %v, want %v", tt.x, tt.power, got, tt.want)
+				t.Fatalf(
+					"floatToInt(%v, %d) = %v, want %v",
+					tt.x,
+					tt.power,
+					got,
+					tt.want,
+				)
 			}
 		})
 	}
@@ -419,7 +435,11 @@ func TestFloatToUsdInt(t *testing.T) {
 			got, err := floatToUsdInt(tt.x)
 			if tt.wantErr {
 				if err == nil {
-					t.Fatalf("floatToUsdInt(%v) expected error, got nil (value %v)", tt.x, got)
+					t.Fatalf(
+						"floatToUsdInt(%v) expected error, got nil (value %v)",
+						tt.x,
+						got,
+					)
 				}
 				return
 			}

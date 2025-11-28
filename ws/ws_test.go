@@ -231,7 +231,8 @@ func TestChannelSubscription(t *testing.T) {
 func TestL2BookMessageRouting(t *testing.T) {
 	t.Parallel()
 	// Focus on testing message routing logic with predictable setup
-	// client := New("http://localhost:8000") // URL doesn't matter, won't connect
+	// client := New("http://localhost:8000") // URL doesn't matter, won't
+	// connect
 
 	server := newMockWSServer(t)
 	defer server.close()

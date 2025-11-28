@@ -189,3 +189,23 @@ func WithScheduleOptionTime(time time.Duration) ScheduleCancelOption {
 func defaultScheduleCancelConfig() scheduleCancelConfig {
 	return scheduleCancelConfig{}
 }
+
+// ===== Approve Agent Options =====
+
+// ApproveAgentOption is a functional option for approve agent operations
+type ApproveAgentOption func(*approveAgentConfig)
+
+type approveAgentConfig struct {
+	name mo.Option[string]
+}
+
+// WithAgentName sets the name for the agent
+func WithAgentName(name string) ApproveAgentOption {
+	return func(cfg *approveAgentConfig) {
+		cfg.name = mo.Some(name)
+	}
+}
+
+func defaultApproveAgentConfig() approveAgentConfig {
+	return approveAgentConfig{}
+}

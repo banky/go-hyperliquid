@@ -49,8 +49,9 @@ func (e *Exchange) signUserSignedAction(
 	payloadTypes []apitypes.Type,
 	primaryType string,
 ) (signature, error) {
-	// signatureChainId is the chain used by the wallet to sign and can be any chain.
-	// hyperliquidChain determines the environment and prevents replaying an action on a different chain.
+	// signatureChainId is the chain used by the wallet to sign and can be any
+	// chain. hyperliquidChain determines the environment and prevents replaying
+	// an action on a different chain.
 
 	action["signatureChainId"] = "0x66eee"
 
@@ -187,7 +188,54 @@ func (e *Exchange) signConvertToMultiSigUserAction(
 	)
 }
 
-// hashAction creates a Keccak256 hash of the action following the Hyperliquid protocol
+func (e *Exchange) signTokenDelegateAction(
+	action map[string]any,
+) (signature, error) {
+	return e.signUserSignedAction(
+		action,
+		[]apitypes.Type{
+			{Name: "hyperliquidChain", Type: "string"},
+			{Name: "validator", Type: "address"},
+			{Name: "wei", Type: "uint64"},
+			{Name: "isUndelegate", Type: "bool"},
+			{Name: "nonce", Type: "uint64"},
+		},
+		"HyperliquidTransaction:TokenDelegate",
+	)
+}
+
+func (e *Exchange) signAgentAction(
+	action map[string]any,
+) (signature, error) {
+	return e.signUserSignedAction(
+		action,
+		[]apitypes.Type{
+			{Name: "hyperliquidChain", Type: "string"},
+			{Name: "agentAddress", Type: "address"},
+			{Name: "agentName", Type: "string"},
+			{Name: "nonce", Type: "uint64"},
+		},
+		"HyperliquidTransaction:ApproveAgent",
+	)
+}
+
+func (e *Exchange) signApproveBuilderFeeAction(
+	action map[string]any,
+) (signature, error) {
+	return e.signUserSignedAction(
+		action,
+		[]apitypes.Type{
+			{Name: "hyperliquidChain", Type: "string"},
+			{Name: "maxFeeRate", Type: "string"},
+			{Name: "builder", Type: "address"},
+			{Name: "nonce", Type: "uint64"},
+		},
+		"HyperliquidTransaction:ApproveBuilderFee",
+	)
+}
+
+// hashAction creates a Keccak256 hash of the action following the Hyperliquid
+// protocol
 func (e *Exchange) hashAction(
 	action map[string]any,
 	vaultAddress mo.Option[common.Address],
@@ -301,7 +349,12 @@ func userSignedPayload(
 ) apitypes.TypedData {
 	rawChainId, ok := action["signatureChainId"].(string)
 	if !ok {
-		panic(fmt.Sprintf("signatureChainId is not a string (got %T)", action["signatureChainId"]))
+		panic(
+			fmt.Sprintf(
+				"signatureChainId is not a string (got %T)",
+				action["signatureChainId"],
+			),
+		)
 	}
 
 	chainId, err := strconv.ParseInt(rawChainId, 16, 64)

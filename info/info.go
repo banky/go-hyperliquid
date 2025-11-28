@@ -11,7 +11,8 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 )
 
-// Info provides access to market data and user account information via REST and WebSocket APIs
+// Info provides access to market data and user account information via REST and
+// WebSocket APIs
 type Info struct {
 	rest rest.ClientInterface
 	ws   ws.ClientInterface
@@ -64,7 +65,8 @@ func New(cfg Config) (*Info, error) {
 	return info, nil
 }
 
-// initializeMetadata fetches and processes metadata for building coin/asset mappings
+// initializeMetadata fetches and processes metadata for building coin/asset
+// mappings
 func (i *Info) initializeMetadata(ctx context.Context, cfg Config) error {
 	// Get or fetch SpotMeta
 	spotMeta := cfg.SpotMeta
@@ -105,12 +107,14 @@ func (i *Info) initializeMetadata(ctx context.Context, cfg Config) error {
 			}
 			i.setPerpMeta(meta, 0)
 		} else {
-			// Fetch meta for other DEXs (offset calculation would be handled separately)
+			// Fetch meta for other DEXs (offset calculation would be handled
+			// separately)
 			fetched, err := i.Meta(ctx, dex)
 			if err != nil {
 				return fmt.Errorf("failed to fetch meta for dex %q: %w", dex, err)
 			}
-			// TODO: Calculate correct offset for builder-deployed perp dexs (110000 + i*10000)
+			// TODO: Calculate correct offset for builder-deployed perp dexs
+			// (110000 + i*10000)
 			i.setPerpMeta(fetched, 0)
 		}
 	}
@@ -183,7 +187,8 @@ func (i *Info) Close() {
 
 // ===== Market Data Queries =====
 
-// AllMids retrieves mid-prices for all coins, with fallback to last trade price if book is empty.
+// AllMids retrieves mid-prices for all coins, with fallback to last trade price
+// if book is empty.
 func (i *Info) AllMids(
 	ctx context.Context,
 	dex string,
@@ -638,7 +643,8 @@ func (i *Info) getCoinFromName(name string) string {
 	return name
 }
 
-// SetCoinMapping sets up the mapping between user-friendly names and actual coin names
+// SetCoinMapping sets up the mapping between user-friendly names and actual
+// coin names
 // This should be called after retrieving metadata
 func (i *Info) SetCoinMapping(coins []string) {
 	i.mu.Lock()

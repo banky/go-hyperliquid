@@ -230,7 +230,8 @@ func subscribe[T any](
 		},
 	)
 
-	// Launch delivery goroutine that forwards from internal channel to subscriber channel
+	// Launch delivery goroutine that forwards from internal channel to
+	// subscriber channel
 	go deliveryLoop(internalChan, subscriberChan)
 
 	// Send subscription message to server (if connected)
@@ -294,7 +295,8 @@ func unsubscribeInternal[T any](
 		close(internalChan)
 	}
 
-	// If no more subscriptions for this identifier, send unsubscribe (if connected)
+	// If no more subscriptions for this identifier, send unsubscribe (if
+	// connected)
 	if len(newActiveSubscriptions) == 0 && m.conn != nil {
 		msg := map[string]any{
 			"method":       "unsubscribe",

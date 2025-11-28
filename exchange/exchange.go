@@ -3,8 +3,11 @@ package exchange
 import (
 	"context"
 	"crypto/ecdsa"
+	"encoding/json"
 	"fmt"
 	"math"
+	"slices"
+	"strings"
 	"time"
 
 	"github.com/banky/go-hyperliquid/constants"
@@ -91,7 +94,8 @@ func (e *Exchange) Close() {
 }
 
 // SetExpiresAfter sets the expiration time for actions (in milliseconds)
-// This is not supported on user-signed actions and must be None for those to work
+// This is not supported on user-signed actions and must be None for those to
+// work
 func (e *Exchange) SetExpiresAfter(expiresAfter time.Duration) {
 	e.expiresAfter = mo.Some(expiresAfter)
 }
@@ -263,7 +267,8 @@ func (e *Exchange) BulkModifyOrders(
 			)
 		}
 
-		// Handle OID conversion - if it's a Cloid (*common.Hash), use as-is, otherwise convert int64
+		// Handle OID conversion - if it's a Cloid (*common.Hash), use as-is,
+		// otherwise convert int64
 		var oid any
 		if cloid, ok := modify.OID.(*common.Hash); ok {
 			oid = cloid
@@ -498,11 +503,13 @@ func (e *Exchange) BulkCancelByCloid(
 	return e.post(ctx, action, timestamp, sig)
 }
 
-// Schedules a time to cancel all open orders. The time must be at least 5 seconds.
-// Once the duration elapses, all open orders will be canceled and a trigger count will be incremented.
-// The max number of triggers per day is 10. This trigger count is reset at 00:00 UTC.
+// Schedules a time to cancel all open orders. The time must be at least 5
+// seconds. Once the duration elapses, all open orders will be canceled and a
+// trigger count will be incremented. The max number of triggers per day is 10.
+// This trigger count is reset at 00:00 UTC.
 //
-// if time is not nil, then set the cancel time in the future. If nil, then unsets any cancel time in the future.
+// if time is not nil, then set the cancel time in the future. If nil, then
+// unsets any cancel time in the future.
 func (e *Exchange) ScheduleCancel(
 	ctx context.Context,
 	opts ...ScheduleCancelOption,
@@ -566,7 +573,10 @@ func (e *Exchange) UpdateIsolatedMargin(
 ) (Response, error) {
 	intAmount, err := floatToUsdInt(amount)
 	if err != nil {
-		return Response{}, fmt.Errorf("failed to convert amount to USD: %w", err)
+		return Response{}, fmt.Errorf(
+			"failed to convert amount to USD: %w",
+			err,
+		)
 	}
 
 	asset, ok := e.info.NameToAsset(name)
@@ -619,6 +629,466 @@ func (e *Exchange) CreateSubAccount(
 	}
 
 	timestamp := time.Now().UnixMilli()
+	sig, err := e.signL1Action(action, uint64(timestamp))
+	if err != nil {
+		return Response{}, fmt.Errorf("failed to sign action: %w", err)
+	}
+
+	return e.post(ctx, action, timestamp, sig)
+}
+
+func (e *Exchange) UsdClassTransfer(
+	ctx context.Context,
+	amount float64,
+	toPerp bool,
+) (Response, error) {
+	timestamp := time.Now().UnixMilli()
+	strAmount, err := floatToWire(amount)
+	if err != nil {
+		return Response{}, fmt.Errorf(
+			"failed to convert amount to wire format: %w",
+			err,
+		)
+	}
+
+	action := map[string]any{
+		"type":   "usdClassTransfer",
+		"amount": strAmount,
+		"toPerp": toPerp,
+		"nonce":  timestamp,
+	}
+
+	sig, err := e.signUsdClassTransferAction(action)
+	if err != nil {
+		return Response{}, fmt.Errorf("failed to sign action: %w", err)
+	}
+
+	return e.post(ctx, action, timestamp, sig)
+}
+
+// SendAsset is used to transfer tokens between different perp
+// DEXs, spot balance, users, and/or sub-accounts. Use "" to specify the default
+// USDC perp DEX and "spot" to specify spot. Only the collateral token can be
+// transferred to or from a perp DEX.
+func (e *Exchange) SendAsset(
+	ctx context.Context,
+	destination string,
+	sourceDex string,
+	destinationDex string,
+	token string,
+	amount float64,
+) (Response, error) {
+	timestamp := time.Now().UnixMilli()
+	strAmount, err := floatToWire(amount)
+	if err != nil {
+		return Response{}, fmt.Errorf(
+			"failed to convert amount to wire format: %w",
+			err,
+		)
+	}
+
+	action := map[string]any{
+		"type":           "sendAsset",
+		"destination":    destination,
+		"sourceDex":      sourceDex,
+		"destinationDex": destinationDex,
+		"token":          token,
+		"amount":         strAmount,
+		"nonce":          timestamp,
+	}
+
+	if v, ok := e.vaultAddress.Get(); ok {
+		action["fromSubAccount"] = v.String()
+	} else {
+		action["fromSubAccount"] = ""
+	}
+
+	sig, err := e.signSendAssetAction(action)
+	if err != nil {
+		return Response{}, fmt.Errorf("failed to sign action: %w", err)
+	}
+
+	return e.post(ctx, action, timestamp, sig)
+}
+
+// SubAccountTransfer transfers assets between sub-accounts.
+func (e *Exchange) SubAccountTransfer(
+	ctx context.Context,
+	subAccountUser common.Address,
+	isDeposit bool,
+	usd int,
+) (Response, error) {
+	timestamp := time.Now().UnixMilli()
+	action := map[string]any{
+		"type":           "subAccountTransfer",
+		"subAccountUser": subAccountUser,
+		"isDeposit":      isDeposit,
+		"usd":            usd,
+	}
+	sig, err := e.signL1Action(action, uint64(timestamp))
+	if err != nil {
+		return Response{}, fmt.Errorf("failed to sign action: %w", err)
+	}
+
+	return e.post(ctx, action, timestamp, sig)
+}
+
+// SubAccountSpotTransfer transfers spot assets between sub-accounts.
+func (e *Exchange) SubAccountSpotTransfer(
+	ctx context.Context,
+	subAccountUser common.Address,
+	isDeposit bool,
+	token string,
+	amount float64,
+) (Response, error) {
+	timestamp := time.Now().UnixMilli()
+	strAmount, err := floatToWire(amount)
+	if err != nil {
+		return Response{}, fmt.Errorf(
+			"failed to convert amount to wire format: %w",
+			err,
+		)
+	}
+
+	action := map[string]any{
+		"type":           "subAccountSpotTransfer",
+		"subAccountUser": subAccountUser,
+		"isDeposit":      isDeposit,
+		"token":          token,
+		"amount":         strAmount,
+	}
+	sig, err := e.signL1Action(action, uint64(timestamp))
+	if err != nil {
+		return Response{}, fmt.Errorf("failed to sign action: %w", err)
+	}
+
+	return e.post(ctx, action, timestamp, sig)
+}
+
+// VaultUsdTransfer transfers USD to or from a vault.
+func (e *Exchange) VaultUsdTransfer(
+	ctx context.Context,
+	vaultAddress common.Address,
+	isDeposit bool,
+	usd int,
+) (Response, error) {
+	timestamp := time.Now().UnixMilli()
+	action := map[string]any{
+		"type":         "vaultTransfer",
+		"vaultAddress": vaultAddress,
+		"isDeposit":    isDeposit,
+		"usd":          usd,
+	}
+	sig, err := e.signL1Action(action, uint64(timestamp))
+	if err != nil {
+		return Response{}, fmt.Errorf("failed to sign action: %w", err)
+	}
+
+	return e.post(ctx, action, timestamp, sig)
+}
+
+// UsdTransfer transfers USD to a destination address.
+func (e *Exchange) UsdTransfer(
+	ctx context.Context,
+	amount float64,
+	destination string,
+) (Response, error) {
+	timestamp := time.Now().UnixMilli()
+	strAmount, err := floatToWire(amount)
+	if err != nil {
+		return Response{}, fmt.Errorf(
+			"failed to convert amount to wire format: %w",
+			err,
+		)
+	}
+
+	action := map[string]any{
+		"destination": destination,
+		"amount":      strAmount,
+		"time":        timestamp,
+		"type":        "usdSend",
+	}
+	sig, err := e.signUsdTransferAction(action)
+	if err != nil {
+		return Response{}, fmt.Errorf("failed to sign action: %w", err)
+	}
+
+	return e.post(ctx, action, timestamp, sig)
+}
+
+// SpotTransfer transfers spot tokens to a destination address.
+func (e *Exchange) SpotTransfer(
+	ctx context.Context,
+	amount float64,
+	destination string,
+	token string,
+) (Response, error) {
+	timestamp := time.Now().UnixMilli()
+	strAmount, err := floatToWire(amount)
+	if err != nil {
+		return Response{}, fmt.Errorf(
+			"failed to convert amount to wire format: %w",
+			err,
+		)
+	}
+
+	action := map[string]any{
+		"destination": destination,
+		"amount":      strAmount,
+		"token":       token,
+		"time":        timestamp,
+		"type":        "spotSend",
+	}
+	sig, err := e.signSpotTransferAction(action)
+	if err != nil {
+		return Response{}, fmt.Errorf("failed to sign action: %w", err)
+	}
+
+	return e.post(ctx, action, timestamp, sig)
+}
+
+// TokenDelegate delegates tokens to a validator.
+func (e *Exchange) TokenDelegate(
+	ctx context.Context,
+	validator string,
+	wei int,
+	isUndelegate bool,
+) (Response, error) {
+	timestamp := time.Now().UnixMilli()
+	action := map[string]any{
+		"validator":    validator,
+		"wei":          wei,
+		"isUndelegate": isUndelegate,
+		"nonce":        timestamp,
+		"type":         "tokenDelegate",
+	}
+	sig, err := e.signTokenDelegateAction(action)
+	if err != nil {
+		return Response{}, fmt.Errorf("failed to sign action: %w", err)
+	}
+
+	return e.post(ctx, action, timestamp, sig)
+}
+
+// WithdrawFromBridge withdraws tokens from the bridge.
+func (e *Exchange) WithdrawFromBridge(
+	ctx context.Context,
+	amount float64,
+	destination string,
+) (Response, error) {
+	timestamp := time.Now().UnixMilli()
+	strAmount, err := floatToWire(amount)
+	if err != nil {
+		return Response{}, fmt.Errorf(
+			"failed to convert amount to wire format: %w",
+			err,
+		)
+	}
+
+	action := map[string]any{
+		"destination": destination,
+		"amount":      strAmount,
+		"time":        timestamp,
+		"type":        "withdraw3",
+	}
+	sig, err := e.signWithdrawFromBridgeAction(action)
+	if err != nil {
+		return Response{}, fmt.Errorf("failed to sign action: %w", err)
+	}
+
+	return e.post(ctx, action, timestamp, sig)
+}
+
+// ApproveAgent approves an agent and returns the response and the agent's
+// private key.
+func (e *Exchange) ApproveAgent(
+	ctx context.Context,
+	opts ...ApproveAgentOption,
+) (Response, *ecdsa.PrivateKey, error) {
+	cfg := defaultApproveAgentConfig()
+	for _, opt := range opts {
+		opt(&cfg)
+	}
+
+	// Generate random agent private key
+	agentPrivateKey, err := crypto.GenerateKey()
+	if err != nil {
+		return Response{}, nil, fmt.Errorf(
+			"failed to generate agent key: %w",
+			err,
+		)
+	}
+
+	// Get agent address
+	agentAddress := crypto.PubkeyToAddress(agentPrivateKey.PublicKey)
+
+	timestamp := time.Now().UnixMilli()
+	action := map[string]any{
+		"type":         "approveAgent",
+		"agentAddress": agentAddress,
+		"nonce":        timestamp,
+	}
+
+	// Add agent name if provided
+	if a, ok := cfg.name.Get(); ok {
+		action["agentName"] = a
+	} else {
+		action["agentName"] = ""
+	}
+
+	sig, err := e.signAgentAction(action)
+	if err != nil {
+		return Response{}, nil, fmt.Errorf("failed to sign action: %w", err)
+	}
+
+	// Remove agentName from action if name was not provided
+	if cfg.name.IsNone() {
+		delete(action, "agentName")
+	}
+
+	result, err := e.post(ctx, action, timestamp, sig)
+	if err != nil {
+		return Response{}, nil, err
+	}
+
+	return result, agentPrivateKey, nil
+}
+
+// ApproveBuilderFee approves a maximum fee rate for a builder.
+// maxFeeRate is a percentage, so maxFeeRate of 0.01 = 1%
+func (e *Exchange) ApproveBuilderFee(
+	ctx context.Context,
+	builder common.Address,
+	maxFeeRate float64,
+) (Response, error) {
+	timestamp := time.Now().UnixMilli()
+	maxFeeRateStr, err := floatToWire(maxFeeRate * 100)
+	if err != nil {
+		return Response{}, fmt.Errorf(
+			"failed to convert maxFeeRate to wire format: %w",
+			err,
+		)
+	}
+	action := map[string]any{
+		"maxFeeRate": maxFeeRateStr + "%",
+		"builder":    builder,
+		"nonce":      timestamp,
+		"type":       "approveBuilderFee",
+	}
+	sig, err := e.signApproveBuilderFeeAction(action)
+	if err != nil {
+		return Response{}, fmt.Errorf("failed to sign action: %w", err)
+	}
+
+	return e.post(ctx, action, timestamp, sig)
+}
+
+// ConvertToMultiSigUser converts the user account to a multi-sig account
+func (e *Exchange) ConvertToMultiSigUser(
+	ctx context.Context,
+	authorizedUsers []common.Address,
+	threshold int,
+) (Response, error) {
+	timestamp := time.Now().UnixMilli()
+
+	// Sort authorized users
+	sortedUsers := make([]common.Address, len(authorizedUsers))
+	copy(sortedUsers, authorizedUsers)
+	slices.SortFunc(
+		authorizedUsers,
+		func(a, z common.Address) int {
+			return a.Cmp(z)
+		},
+	)
+
+	// Create signers JSON
+	signers := map[string]any{
+		"authorizedUsers": sortedUsers,
+		"threshold":       int64(threshold),
+	}
+	signersJSON, err := json.Marshal(signers)
+	if err != nil {
+		return Response{}, fmt.Errorf("failed to marshal signers: %w", err)
+	}
+
+	action := map[string]any{
+		"type":    "convertToMultiSigUser",
+		"signers": string(signersJSON),
+		"nonce":   timestamp,
+	}
+	sig, err := e.signConvertToMultiSigUserAction(action)
+	if err != nil {
+		return Response{}, fmt.Errorf("failed to sign action: %w", err)
+	}
+
+	return e.post(ctx, action, timestamp, sig)
+}
+
+// SpotDeployRegisterToken registers a token for spot deployment
+func (e *Exchange) SpotDeployRegisterToken(
+	ctx context.Context,
+	tokenName string,
+	szDecimals int,
+	weiDecimals int,
+	maxGas int,
+	fullName string,
+) (Response, error) {
+	timestamp := time.Now().UnixMilli()
+	action := map[string]any{
+		"type": "spotDeploy",
+		"registerToken2": map[string]any{
+			"spec": map[string]any{
+				"name":        tokenName,
+				"szDecimals":  szDecimals,
+				"weiDecimals": weiDecimals,
+			},
+			"maxGas":   maxGas,
+			"fullName": fullName,
+		},
+	}
+	sig, err := e.signL1Action(action, uint64(timestamp))
+	if err != nil {
+		return Response{}, fmt.Errorf("failed to sign action: %w", err)
+	}
+
+	return e.post(ctx, action, timestamp, sig)
+}
+
+// SpotDeployUserGenesis performs user genesis for spot deployment
+func (e *Exchange) SpotDeployUserGenesis(
+	ctx context.Context,
+	token int,
+	userAndWei []UserWeiPair,
+	existingTokenAndWei []TokenWeiPair,
+) (Response, error) {
+	timestamp := time.Now().UnixMilli()
+
+	// Convert userAndWei to lowercase addresses and string wei
+	userAndWeiAction := make([][]string, len(userAndWei))
+	for i, pair := range userAndWei {
+		userAndWeiAction[i] = []string{
+			strings.ToLower(pair.User.String()),
+			pair.Wei.String(),
+		}
+	}
+
+	// Convert existingTokenAndWei to action format
+	existingTokenAndWeiAction := make([][]any, len(existingTokenAndWei))
+	for i, pair := range existingTokenAndWei {
+		existingTokenAndWeiAction[i] = []any{
+			pair.Token,
+			pair.Wei.String(),
+		}
+	}
+
+	action := map[string]any{
+		"type": "spotDeploy",
+		"userGenesis": map[string]any{
+			"token":               token,
+			"userAndWei":          userAndWeiAction,
+			"existingTokenAndWei": existingTokenAndWeiAction,
+		},
+	}
 	sig, err := e.signL1Action(action, uint64(timestamp))
 	if err != nil {
 		return Response{}, fmt.Errorf("failed to sign action: %w", err)
@@ -724,7 +1194,8 @@ func (e *Exchange) getSlippagePrice(
 	px = roundToSigfig(px, 5)
 
 	// 5. Final decimal rounding:
-	//    Python: round(px_5sig, (6 if not is_spot else 8) - asset_to_sz_decimals[asset])
+	// Python: round(px_5sig, (6 if not is_spot else 8) -
+	// asset_to_sz_decimals[asset])
 	baseDecimals := 6
 	if isSpot {
 		baseDecimals = 8

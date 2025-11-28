@@ -7,7 +7,8 @@ import (
 
 // ===== Subscription Types =====
 
-// SubscriptionType interface defines the contract for all subscription type configurations
+// SubscriptionType interface defines the contract for all subscription type
+// configurations
 type SubscriptionType interface {
 	channelName() string
 	identifier() string
@@ -116,7 +117,8 @@ func (s UserFundingsSubscription) subscriptionPayload() any {
 	return map[string]any{"type": "userFundings", "user": s.User}
 }
 
-// UserNonFundingLedgerUpdatesSubscription subscribes to user non-funding ledger updates
+// UserNonFundingLedgerUpdatesSubscription subscribes to user non-funding ledger
+// updates
 type UserNonFundingLedgerUpdatesSubscription struct {
 	User string
 }
@@ -172,7 +174,8 @@ func (s ActiveAssetCtxSubscription) subscriptionPayload() any {
 	return map[string]any{"type": "activeAssetCtx", "coin": s.Coin}
 }
 
-// ActiveAssetDataSubscription subscribes to active asset data for a user and coin
+// ActiveAssetDataSubscription subscribes to active asset data for a user and
+// coin
 type ActiveAssetDataSubscription struct {
 	User string
 	Coin string
