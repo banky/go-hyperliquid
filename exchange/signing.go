@@ -1,6 +1,7 @@
 package exchange
 
 import (
+	"bytes"
 	"encoding/binary"
 	"fmt"
 	"strconv"
@@ -20,9 +21,75 @@ func (e *Exchange) signL1Action(
 	action map[string]any,
 	nonce uint64,
 ) (signature, error) {
-	actionHash, err := e.hashAction(
+	actionHash, err := hashAction(
 		action,
 		e.vaultAddress,
+		nonce,
+		e.expiresAfter,
+	)
+	if err != nil {
+		return signature{}, fmt.Errorf("failed to create action hash: %w", err)
+	}
+
+	phantomAgent := constructPhantomAgent(actionHash, e.rest.IsMainnet())
+	typedData := l1Payload(phantomAgent)
+
+	hash, _, err := apitypes.TypedDataAndHash(typedData)
+	if err != nil {
+		return signature{}, fmt.Errorf(
+			"failed generating hash for typed data: %w",
+			err,
+		)
+	}
+
+	return e.signHash(common.BytesToHash(hash))
+}
+
+// signL1ActionWithVault signs an L1 action with an optional vault address
+// override
+func (e *Exchange) signL1ActionWithVault(
+	action map[string]any,
+	nonce uint64,
+	vaultAddress mo.Option[common.Address],
+) (signature, error) {
+	actionHash, err := hashAction(
+		action,
+		vaultAddress,
+		nonce,
+		e.expiresAfter,
+	)
+	if err != nil {
+		return signature{}, fmt.Errorf("failed to create action hash: %w", err)
+	}
+
+	phantomAgent := constructPhantomAgent(actionHash, e.rest.IsMainnet())
+	typedData := l1Payload(phantomAgent)
+
+	hash, _, err := apitypes.TypedDataAndHash(typedData)
+	if err != nil {
+		return signature{}, fmt.Errorf(
+			"failed generating hash for typed data: %w",
+			err,
+		)
+	}
+
+	return e.signHash(common.BytesToHash(hash))
+}
+
+// signMultiSigAction signs a multi-signature action
+func (e *Exchange) signMultiSigAction(
+	action map[string]any,
+	vaultAddress *common.Address,
+	nonce uint64,
+) (signature, error) {
+	var vaultOpt mo.Option[common.Address]
+	if vaultAddress != nil {
+		vaultOpt = mo.Some(*vaultAddress)
+	}
+
+	actionHash, err := hashAction(
+		action,
+		vaultOpt,
 		nonce,
 		e.expiresAfter,
 	)
@@ -236,16 +303,25 @@ func (e *Exchange) signApproveBuilderFeeAction(
 
 // hashAction creates a Keccak256 hash of the action following the Hyperliquid
 // protocol
-func (e *Exchange) hashAction(
-	action map[string]any,
+func hashAction[T any](
+	action T,
 	vaultAddress mo.Option[common.Address],
 	nonce uint64,
 	expiresAfter mo.Option[time.Duration],
 ) (common.Hash, error) {
-	data, err := msgpack.Marshal(action)
-	if err != nil {
-		return common.Hash{}, fmt.Errorf("failed to marshal action: %w", err)
+	var buf bytes.Buffer
+	enc := msgpack.NewEncoder(&buf)
+	enc.SetCustomStructTag("json")
+	enc.UseCompactInts(true)
+
+	if err := enc.Encode(action); err != nil {
+		return common.Hash{}, fmt.Errorf(
+			"failed to msgpack-encode action: %w",
+			err,
+		)
 	}
+
+	data := buf.Bytes()
 
 	nonceBytes := make([]byte, 8)
 	binary.BigEndian.PutUint64(nonceBytes, nonce)

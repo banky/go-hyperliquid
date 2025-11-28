@@ -1097,6 +1097,502 @@ func (e *Exchange) SpotDeployUserGenesis(
 	return e.post(ctx, action, timestamp, sig)
 }
 
+// spotDeployTokenActionInner is a helper for simple spot deploy token actions
+func (e *Exchange) spotDeployTokenActionInner(
+	ctx context.Context,
+	variant string,
+	token int,
+) (Response, error) {
+	timestamp := time.Now().UnixMilli()
+	action := map[string]any{
+		"type": "spotDeploy",
+		variant: map[string]any{
+			"token": token,
+		},
+	}
+	sig, err := e.signL1Action(action, uint64(timestamp))
+	if err != nil {
+		return Response{}, fmt.Errorf("failed to sign action: %w", err)
+	}
+	return e.post(ctx, action, timestamp, sig)
+}
+
+// SpotDeployEnableFreezePrivilege enables freeze privilege for a token
+func (e *Exchange) SpotDeployEnableFreezePrivilege(
+	ctx context.Context,
+	token int,
+) (Response, error) {
+	return e.spotDeployTokenActionInner(ctx, "enableFreezePrivilege", token)
+}
+
+// SpotDeployRevokeFreezePrivilege revokes freeze privilege for a token
+func (e *Exchange) SpotDeployRevokeFreezePrivilege(
+	ctx context.Context,
+	token int,
+) (Response, error) {
+	return e.spotDeployTokenActionInner(ctx, "revokeFreezePrivilege", token)
+}
+
+// SpotDeployEnableQuoteToken enables a token as a quote asset
+func (e *Exchange) SpotDeployEnableQuoteToken(
+	ctx context.Context,
+	token int,
+) (Response, error) {
+	return e.spotDeployTokenActionInner(ctx, "enableQuoteToken", token)
+}
+
+// SpotDeployFreezeUser freezes or unfreezes a user
+func (e *Exchange) SpotDeployFreezeUser(
+	ctx context.Context,
+	token int,
+	user common.Address,
+	freeze bool,
+) (Response, error) {
+	timestamp := time.Now().UnixMilli()
+	action := map[string]any{
+		"type": "spotDeploy",
+		"freezeUser": map[string]any{
+			"token":  token,
+			"user":   strings.ToLower(user.String()),
+			"freeze": freeze,
+		},
+	}
+	sig, err := e.signL1Action(action, uint64(timestamp))
+	if err != nil {
+		return Response{}, fmt.Errorf("failed to sign action: %w", err)
+	}
+	return e.post(ctx, action, timestamp, sig)
+}
+
+// SpotDeployGenesis sets up genesis configuration for a token
+func (e *Exchange) SpotDeployGenesis(
+	ctx context.Context,
+	token int,
+	maxSupply string,
+	noHyperliquidity bool,
+) (Response, error) {
+	timestamp := time.Now().UnixMilli()
+	genesis := map[string]any{
+		"token":     token,
+		"maxSupply": maxSupply,
+	}
+	if noHyperliquidity {
+		genesis["noHyperliquidity"] = true
+	}
+	action := map[string]any{
+		"type":    "spotDeploy",
+		"genesis": genesis,
+	}
+	sig, err := e.signL1Action(action, uint64(timestamp))
+	if err != nil {
+		return Response{}, fmt.Errorf("failed to sign action: %w", err)
+	}
+	return e.post(ctx, action, timestamp, sig)
+}
+
+// SpotDeployRegisterSpot registers a spot trading pair
+func (e *Exchange) SpotDeployRegisterSpot(
+	ctx context.Context,
+	baseToken int,
+	quoteToken int,
+) (Response, error) {
+	timestamp := time.Now().UnixMilli()
+	action := map[string]any{
+		"type": "spotDeploy",
+		"registerSpot": map[string]any{
+			"tokens": []int{baseToken, quoteToken},
+		},
+	}
+	sig, err := e.signL1Action(action, uint64(timestamp))
+	if err != nil {
+		return Response{}, fmt.Errorf("failed to sign action: %w", err)
+	}
+	return e.post(ctx, action, timestamp, sig)
+}
+
+// SpotDeployRegisterHyperliquidity registers hyperliquidity market maker
+func (e *Exchange) SpotDeployRegisterHyperliquidity(
+	ctx context.Context,
+	spot int,
+	startPx float64,
+	orderSz float64,
+	nOrders int,
+	nSeededLevels *int,
+) (Response, error) {
+	timestamp := time.Now().UnixMilli()
+	registerHyperliquidity := map[string]any{
+		"spot":    spot,
+		"startPx": fmt.Sprintf("%v", startPx),
+		"orderSz": fmt.Sprintf("%v", orderSz),
+		"nOrders": nOrders,
+	}
+	if nSeededLevels != nil {
+		registerHyperliquidity["nSeededLevels"] = *nSeededLevels
+	}
+	action := map[string]any{
+		"type":                   "spotDeploy",
+		"registerHyperliquidity": registerHyperliquidity,
+	}
+	sig, err := e.signL1Action(action, uint64(timestamp))
+	if err != nil {
+		return Response{}, fmt.Errorf("failed to sign action: %w", err)
+	}
+	return e.post(ctx, action, timestamp, sig)
+}
+
+// SpotDeploySetDeployerTradingFeeShare sets the deployer trading fee share
+func (e *Exchange) SpotDeploySetDeployerTradingFeeShare(
+	ctx context.Context,
+	token int,
+	share string,
+) (Response, error) {
+	timestamp := time.Now().UnixMilli()
+	action := map[string]any{
+		"type": "spotDeploy",
+		"setDeployerTradingFeeShare": map[string]any{
+			"token": token,
+			"share": share,
+		},
+	}
+	sig, err := e.signL1Action(action, uint64(timestamp))
+	if err != nil {
+		return Response{}, fmt.Errorf("failed to sign action: %w", err)
+	}
+	return e.post(ctx, action, timestamp, sig)
+}
+
+// PerpDeploySchemaInput represents schema input for perp deployment
+type PerpDeploySchemaInput struct {
+	FullName        string
+	CollateralToken string
+	OracleUpdater   *common.Address
+}
+
+// PerpDeployRegisterAsset registers a new perpetual asset
+func (e *Exchange) PerpDeployRegisterAsset(
+	ctx context.Context,
+	dex string,
+	maxGas *int,
+	coin string,
+	szDecimals int,
+	oraclePx string,
+	marginTableID int,
+	onlyIsolated bool,
+	schema *PerpDeploySchemaInput,
+) (Response, error) {
+	timestamp := time.Now().UnixMilli()
+
+	var schemaWire map[string]any
+	if schema != nil {
+		schemaWire = map[string]any{
+			"fullName":        schema.FullName,
+			"collateralToken": schema.CollateralToken,
+		}
+		if schema.OracleUpdater != nil {
+			schemaWire["oracleUpdater"] = strings.ToLower(
+				schema.OracleUpdater.String(),
+			)
+		} else {
+			schemaWire["oracleUpdater"] = nil
+		}
+	}
+
+	action := map[string]any{
+		"type": "perpDeploy",
+		"registerAsset": map[string]any{
+			"maxGas": maxGas,
+			"assetRequest": map[string]any{
+				"coin":          coin,
+				"szDecimals":    szDecimals,
+				"oraclePx":      oraclePx,
+				"marginTableId": marginTableID,
+				"onlyIsolated":  onlyIsolated,
+			},
+			"dex":    dex,
+			"schema": schemaWire,
+		},
+	}
+	sig, err := e.signL1Action(action, uint64(timestamp))
+	if err != nil {
+		return Response{}, fmt.Errorf("failed to sign action: %w", err)
+	}
+	return e.post(ctx, action, timestamp, sig)
+}
+
+// PerpDeploySetOracle sets oracle prices for a DEX
+func (e *Exchange) PerpDeploySetOracle(
+	ctx context.Context,
+	dex string,
+	oraclePxs map[string]string,
+	allMarkPxs []map[string]string,
+	externalPerpPxs map[string]string,
+) (Response, error) {
+	timestamp := time.Now().UnixMilli()
+
+	// Convert maps to sorted key-value pairs
+	oraclePxsWire := sortStringMap(oraclePxs)
+	markPxsWire := make([][][]string, len(allMarkPxs))
+	for i, markPxs := range allMarkPxs {
+		markPxsWire[i] = sortStringMap(markPxs)
+	}
+	externalPerpPxsWire := sortStringMap(externalPerpPxs)
+
+	action := map[string]any{
+		"type": "perpDeploy",
+		"setOracle": map[string]any{
+			"dex":             dex,
+			"oraclePxs":       oraclePxsWire,
+			"markPxs":         markPxsWire,
+			"externalPerpPxs": externalPerpPxsWire,
+		},
+	}
+	sig, err := e.signL1Action(action, uint64(timestamp))
+	if err != nil {
+		return Response{}, fmt.Errorf("failed to sign action: %w", err)
+	}
+	return e.post(ctx, action, timestamp, sig)
+}
+
+// cSignerInner is a helper for c signer actions
+func (e *Exchange) cSignerInner(
+	ctx context.Context,
+	variant string,
+) (Response, error) {
+	timestamp := time.Now().UnixMilli()
+	action := map[string]any{
+		"type":  "CSignerAction",
+		variant: nil,
+	}
+	sig, err := e.signL1Action(action, uint64(timestamp))
+	if err != nil {
+		return Response{}, fmt.Errorf("failed to sign action: %w", err)
+	}
+	return e.post(ctx, action, timestamp, sig)
+}
+
+// CSignerUnjailSelf unjails the signer
+func (e *Exchange) CSignerUnjailSelf(ctx context.Context) (Response, error) {
+	return e.cSignerInner(ctx, "unjailSelf")
+}
+
+// CSignerJailSelf jails the signer
+func (e *Exchange) CSignerJailSelf(ctx context.Context) (Response, error) {
+	return e.cSignerInner(ctx, "jailSelf")
+}
+
+// CValidatorRegisterProfile represents validator profile configuration
+type CValidatorRegisterProfile struct {
+	NodeIP              string
+	Name                string
+	Description         string
+	DelegationsDisabled bool
+	CommissionBps       int
+	Signer              string
+}
+
+// CValidatorRegister registers a new validator
+func (e *Exchange) CValidatorRegister(
+	ctx context.Context,
+	profile CValidatorRegisterProfile,
+	unjailed bool,
+	initialWei int,
+) (Response, error) {
+	timestamp := time.Now().UnixMilli()
+	action := map[string]any{
+		"type": "CValidatorAction",
+		"register": map[string]any{
+			"profile": map[string]any{
+				"node_ip": map[string]any{
+					"Ip": profile.NodeIP,
+				},
+				"name":                 profile.Name,
+				"description":          profile.Description,
+				"delegations_disabled": profile.DelegationsDisabled,
+				"commission_bps":       profile.CommissionBps,
+				"signer":               profile.Signer,
+			},
+			"unjailed":    unjailed,
+			"initial_wei": initialWei,
+		},
+	}
+	sig, err := e.signL1Action(action, uint64(timestamp))
+	if err != nil {
+		return Response{}, fmt.Errorf("failed to sign action: %w", err)
+	}
+	return e.post(ctx, action, timestamp, sig)
+}
+
+// CValidatorChangeProfileOptions represents optional changes to validator
+// profile
+type CValidatorChangeProfileOptions struct {
+	NodeIP             *string
+	Name               *string
+	Description        *string
+	DisableDelegations *bool
+	CommissionBps      *int
+	Signer             *string
+}
+
+// CValidatorChangeProfile updates validator profile
+func (e *Exchange) CValidatorChangeProfile(
+	ctx context.Context,
+	unjailed bool,
+	options CValidatorChangeProfileOptions,
+) (Response, error) {
+	timestamp := time.Now().UnixMilli()
+
+	var nodeIP any
+	if options.NodeIP != nil {
+		nodeIP = map[string]any{"Ip": *options.NodeIP}
+	}
+
+	action := map[string]any{
+		"type": "CValidatorAction",
+		"changeProfile": map[string]any{
+			"node_ip":             nodeIP,
+			"name":                options.Name,
+			"description":         options.Description,
+			"unjailed":            unjailed,
+			"disable_delegations": options.DisableDelegations,
+			"commission_bps":      options.CommissionBps,
+			"signer":              options.Signer,
+		},
+	}
+	sig, err := e.signL1Action(action, uint64(timestamp))
+	if err != nil {
+		return Response{}, fmt.Errorf("failed to sign action: %w", err)
+	}
+	return e.post(ctx, action, timestamp, sig)
+}
+
+// CValidatorUnregister unregisters the validator
+func (e *Exchange) CValidatorUnregister(ctx context.Context) (Response, error) {
+	timestamp := time.Now().UnixMilli()
+	action := map[string]any{
+		"type":       "CValidatorAction",
+		"unregister": nil,
+	}
+	sig, err := e.signL1Action(action, uint64(timestamp))
+	if err != nil {
+		return Response{}, fmt.Errorf("failed to sign action: %w", err)
+	}
+	return e.post(ctx, action, timestamp, sig)
+}
+
+// UseBigBlocks enables or disables big blocks for EVM user modifications
+func (e *Exchange) UseBigBlocks(
+	ctx context.Context,
+	enable bool,
+) (Response, error) {
+	timestamp := time.Now().UnixMilli()
+	action := map[string]any{
+		"type":           "evmUserModify",
+		"usingBigBlocks": enable,
+	}
+	sig, err := e.signL1Action(action, uint64(timestamp))
+	if err != nil {
+		return Response{}, fmt.Errorf("failed to sign action: %w", err)
+	}
+	return e.post(ctx, action, timestamp, sig)
+}
+
+// AgentEnableDexAbstraction enables DEX abstraction for the agent
+func (e *Exchange) AgentEnableDexAbstraction(
+	ctx context.Context,
+) (Response, error) {
+	timestamp := time.Now().UnixMilli()
+	action := map[string]any{
+		"type": "agentEnableDexAbstraction",
+	}
+	sig, err := e.signL1ActionWithVault(
+		action,
+		uint64(timestamp),
+		e.vaultAddress,
+	)
+	if err != nil {
+		return Response{}, fmt.Errorf("failed to sign action: %w", err)
+	}
+	return e.post(ctx, action, timestamp, sig)
+}
+
+// UserDexAbstraction enables or disables DEX abstraction for a user
+func (e *Exchange) UserDexAbstraction(
+	ctx context.Context,
+	user common.Address,
+	enabled bool,
+) (Response, error) {
+	timestamp := time.Now().UnixMilli()
+	action := map[string]any{
+		"type":    "userDexAbstraction",
+		"user":    strings.ToLower(user.String()),
+		"enabled": enabled,
+		"nonce":   timestamp,
+	}
+	sig, err := e.signUserDexAbstractionAction(action)
+	if err != nil {
+		return Response{}, fmt.Errorf("failed to sign action: %w", err)
+	}
+	return e.post(ctx, action, timestamp, sig)
+}
+
+// MultiSig executes a multi-signature transaction
+func (e *Exchange) MultiSig(
+	ctx context.Context,
+	multiSigUser common.Address,
+	innerAction map[string]any,
+	signatures []any,
+	nonce int64,
+	vaultAddress *common.Address,
+) (Response, error) {
+	walletAddress := crypto.PubkeyToAddress(e.privateKey.PublicKey)
+
+	multiSigAction := map[string]any{
+		"type":             "multiSig",
+		"signatureChainId": "0x66eee",
+		"signatures":       signatures,
+		"payload": map[string]any{
+			"multiSigUser": strings.ToLower(multiSigUser.String()),
+			"outerSigner":  strings.ToLower(walletAddress.String()),
+			"action":       innerAction,
+		},
+	}
+	sig, err := e.signMultiSigAction(
+		multiSigAction,
+		vaultAddress,
+		uint64(nonce),
+	)
+	if err != nil {
+		return Response{}, fmt.Errorf("failed to sign action: %w", err)
+	}
+	return e.post(ctx, multiSigAction, nonce, sig)
+}
+
+// Noop sends a no-operation action
+func (e *Exchange) Noop(ctx context.Context, nonce int64) (Response, error) {
+	action := map[string]any{
+		"type": "noop",
+	}
+	sig, err := e.signL1ActionWithVault(action, uint64(nonce), e.vaultAddress)
+	if err != nil {
+		return Response{}, fmt.Errorf("failed to sign action: %w", err)
+	}
+	return e.post(ctx, action, nonce, sig)
+}
+
+// sortStringMap converts a map to sorted key-value pairs
+func sortStringMap(m map[string]string) [][]string {
+	var keys []string
+	for k := range m {
+		keys = append(keys, k)
+	}
+	slices.Sort(keys)
+	result := make([][]string, len(keys))
+	for i, k := range keys {
+		result[i] = []string{k, m[k]}
+	}
+	return result
+}
+
 func (e *Exchange) post(
 	ctx context.Context,
 	action map[string]any,

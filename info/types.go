@@ -1,5 +1,7 @@
 package info
 
+import "github.com/ethereum/go-ethereum/common"
+
 // ===== Market Data Types =====
 
 // L2Level represents a single level in the order book
@@ -37,14 +39,19 @@ type SpotAssetInfo struct {
 
 // SpotTokenInfo contains spot token metadata
 type SpotTokenInfo struct {
-	Name        string  `json:"name"`
-	SzDecimals  int     `json:"szDecimals"`
-	WeiDecimals int     `json:"weiDecimals"`
-	Index       int     `json:"index"`
-	TokenId     string  `json:"tokenId"`
-	IsCanonical bool    `json:"isCanonical"`
-	EvmContract *string `json:"evmContract"`
-	FullName    *string `json:"fullName"`
+	Name        string      `json:"name"`
+	SzDecimals  int         `json:"szDecimals"`
+	WeiDecimals int         `json:"weiDecimals"`
+	Index       int         `json:"index"`
+	TokenId     string      `json:"tokenId"`
+	IsCanonical bool        `json:"isCanonical"`
+	EvmContract EvmContract `json:"evmContract"`
+	FullName    *string     `json:"fullName"`
+}
+
+type EvmContract struct {
+	Address             common.Address `json:"address"`
+	EvmExtraWeiDecimals int            `json:"evm_extra_wei_decimals"`
 }
 
 // SpotMeta contains exchange metadata for spot trading

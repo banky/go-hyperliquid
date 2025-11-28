@@ -25,7 +25,7 @@ type orderWire struct {
 	S string        `json:"s"`
 	R bool          `json:"r"`
 	T orderTypeWire `json:"t"`
-	C *common.Hash  `json:"cloid,omitempty"`
+	C *common.Hash  `json:"c,omitempty"`
 }
 
 type OrderType struct {
@@ -43,9 +43,9 @@ type LimitOrder struct {
 }
 
 type TriggerOrder struct {
-	IsMarket  bool    `json:"isMarket"`
-	TriggerPx float64 `json:"triggerPx"`
-	TpSl      string  `json:"tpsl"`
+	IsMarket  bool
+	TriggerPx float64
+	TpSl      string
 }
 
 type triggerOrderWire struct {
@@ -212,11 +212,13 @@ func (c CancelRequestByCloid) toCancelByCloidWire(
 	}
 }
 
+// TODO: Use optional here?
 // ordersToAction converts a list of OrderWires to an order action
 func ordersToAction(orders []orderWire, builder *BuilderInfo) map[string]any {
 	action := map[string]any{
-		"type":   "order",
-		"orders": orders,
+		"type":     "order",
+		"orders":   orders,
+		"grouping": "na",
 	}
 
 	if builder != nil {
@@ -227,6 +229,34 @@ func ordersToAction(orders []orderWire, builder *BuilderInfo) map[string]any {
 	}
 
 	return action
+}
+
+type orderActionWire struct {
+	Type     string      `json:"type"`
+	Orders   []orderWire `json:"orders"`
+	Grouping string      `json:"grouping"`
+}
+
+func ordersToAction2(orders []orderWire, builder *BuilderInfo) orderActionWire {
+	return orderActionWire{
+		Type:     "order",
+		Orders:   orders,
+		Grouping: "na",
+	}
+	// action := map[string]any{
+	// 	"type":     "order",
+	// 	"orders":   orders,
+	// 	"grouping": "na",
+	// }
+
+	// if builder != nil {
+	// 	action["grouping"] = map[string]any{
+	// 		"b": strings.ToLower(builder.PublicAddress.String()),
+	// 		"f": builder.FeeAmount,
+	// 	}
+	// }
+
+	// return action
 }
 
 // cancelsToAction converts a list of CancelRequests to a cancel action
