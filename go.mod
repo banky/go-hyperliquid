@@ -6,6 +6,7 @@ require (
 	github.com/coder/websocket v1.8.14
 	github.com/ethereum/go-ethereum v1.16.7
 	github.com/go-resty/resty/v2 v2.17.0
+	github.com/joho/godotenv v1.5.1
 	github.com/samber/mo v1.16.0
 	github.com/vmihailenco/msgpack/v5 v5.4.1
 )

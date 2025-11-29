@@ -99,7 +99,7 @@ type Client struct {
 	baseURL               string
 	conn                  *websocket.Conn
 	wsReady               bool
-	subscriptionIDCounter int
+	subscriptionIDCounter int64
 	activeSubscriptions   map[string][]*channelSubscription
 	stopChan              chan struct{}
 	wg                    sync.WaitGroup
@@ -109,7 +109,7 @@ type Client struct {
 // channelSubscription holds the internal channel for a subscription
 type channelSubscription struct {
 	internalChan any
-	id           int
+	id           int64
 }
 
 // New creates a new WebSocket Client

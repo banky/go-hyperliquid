@@ -3,19 +3,87 @@ package exchange
 import (
 	"fmt"
 	"math/big"
-	"strings"
 
+	"github.com/banky/go-hyperliquid/types"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/samber/mo"
 )
 
-type OrderRequest struct {
+type orderRequest struct {
 	Coin       string
 	IsBuy      bool
 	Sz         float64
 	LimitPx    float64
 	OrderType  OrderType
 	ReduceOnly bool
-	CLOID      *common.Hash
+	Cloid      mo.Option[types.Cloid]
+}
+
+type NewOrderRequestOption func(*newOrderRequestConfig)
+
+type newOrderRequestConfig struct {
+	reduceOnly   bool
+	cloid        mo.Option[types.Cloid]
+	limitOrder   mo.Option[LimitOrder]
+	triggerOrder mo.Option[TriggerOrder]
+}
+
+func NewOrderRequest(
+	coin string,
+	isBuy bool,
+	sz float64,
+	limitPx float64,
+	opts ...NewOrderRequestOption,
+) orderRequest {
+	cfg := newOrderRequestConfig{}
+	for _, opt := range opts {
+		opt(&cfg)
+	}
+
+	var orderType OrderType
+	if l, ok := cfg.limitOrder.Get(); ok {
+		orderType.Limit = &l
+	} else if t, ok := cfg.triggerOrder.Get(); ok {
+		orderType.Trigger = &t
+	} else {
+		panic("Failed to create OrderRequest. OrderType must be set")
+	}
+
+	return orderRequest{
+		Coin:       coin,
+		IsBuy:      isBuy,
+		Sz:         sz,
+		LimitPx:    limitPx,
+		OrderType:  orderType,
+		ReduceOnly: cfg.reduceOnly,
+		Cloid:      cfg.cloid,
+	}
+}
+
+// WithReduceOnly sets the reduce-only flag
+func WithReduceOnly(reduceOnly bool) NewOrderRequestOption {
+	return func(cfg *newOrderRequestConfig) {
+		cfg.reduceOnly = reduceOnly
+	}
+}
+
+// WithCloid sets the client order ID
+func WithCloid(c types.Cloid) NewOrderRequestOption {
+	return func(cfg *newOrderRequestConfig) {
+		cfg.cloid = mo.Some(c)
+	}
+}
+
+func WithLimitOrder(limitOrder LimitOrder) NewOrderRequestOption {
+	return func(cfg *newOrderRequestConfig) {
+		cfg.limitOrder = mo.Some(limitOrder)
+	}
+}
+
+func WithTriggerOrder(triggerOrder TriggerOrder) NewOrderRequestOption {
+	return func(cfg *newOrderRequestConfig) {
+		cfg.triggerOrder = mo.Some(triggerOrder)
+	}
 }
 
 type orderWire struct {
@@ -25,7 +93,7 @@ type orderWire struct {
 	S string        `json:"s"`
 	R bool          `json:"r"`
 	T orderTypeWire `json:"t"`
-	C *common.Hash  `json:"c,omitempty"`
+	C *types.Cloid  `json:"c,omitempty"`
 }
 
 type OrderType struct {
@@ -56,14 +124,13 @@ type triggerOrderWire struct {
 
 type BuilderInfo struct {
 	// Public address of the builder
-	PublicAddress common.Address
+	PublicAddress common.Address `json:"b"`
 	// Amount of the fee in tenths of basis points.
 	// eg. 10 means 1 basis point
-	FeeAmount int
+	FeeAmount int64 `json:"f"`
 }
 
 type Oid int64
-type Cloid common.Hash
 
 // OidOrCloid represents either an order ID or a CLOID
 type OidOrCloid any
@@ -76,26 +143,71 @@ type UserWeiPair struct {
 
 // TokenWeiPair represents a token ID and wei amount
 type TokenWeiPair struct {
-	Token int
+	Token int64
 	Wei   *big.Int
 }
 
-// ModifyRequest represents a modify order request
-type ModifyRequest struct {
-	OID   OidOrCloid
-	Order OrderRequest
+// modifyRequest represents a modify order request
+type modifyRequest struct {
+	Oid   mo.Option[int64]
+	Cloid mo.Option[types.Cloid]
+	Order orderRequest
 }
+
+type ModifyRequestOption func(*ModifyRequestConfig)
+
+type ModifyRequestConfig struct {
+	oid   mo.Option[int64]
+	cloid mo.Option[types.Cloid]
+}
+
+// NewModifyRequest creates a new modify order request
+func NewModifyRequest(
+	order orderRequest,
+	opts ...ModifyRequestOption,
+) modifyRequest {
+	cfg := ModifyRequestConfig{}
+	for _, opt := range opts {
+		opt(&cfg)
+	}
+
+	if cfg.oid.IsNone() && cfg.cloid.IsNone() {
+		panic(
+			"failed to create modify request. either order ID or CLOID must be provided",
+		)
+	}
+
+	return modifyRequest{
+		Oid:   cfg.oid,
+		Cloid: cfg.cloid,
+		Order: order,
+	}
+}
+
+func WithModifyOrderId(id int64) ModifyRequestOption {
+	return func(mrc *ModifyRequestConfig) {
+		mrc.oid = mo.Some(id)
+	}
+}
+
+func WithModifyCloid(c types.Cloid) ModifyRequestOption {
+	return func(mrc *ModifyRequestConfig) {
+		mrc.cloid = mo.Some(c)
+	}
+}
+
+// func
 
 // modifyWire represents a modify order in wire format
 type modifyWire struct {
-	OID   any       `json:"oid"`
+	Oid   any       `json:"oid"`
 	Order orderWire `json:"order"`
 }
 
 // CancelRequest represents a cancel order request
 type CancelRequest struct {
 	Coin string
-	Oid  int
+	Oid  int64
 }
 
 // cancelWire represents a cancel order in wire format
@@ -105,7 +217,7 @@ type cancelWire struct {
 }
 
 // NewCancelRequest creates a new cancel request with an order ID
-func NewCancelRequest(coin string, oid int) CancelRequest {
+func NewCancelRequest(coin string, oid int64) CancelRequest {
 	return CancelRequest{
 		Coin: coin,
 		Oid:  oid,
@@ -115,19 +227,19 @@ func NewCancelRequest(coin string, oid int) CancelRequest {
 // CancelRequestByCloid represents a cancel order request by CLOID
 type CancelRequestByCloid struct {
 	Coin  string
-	Cloid common.Hash
+	Cloid types.Cloid
 }
 
 // cancelByCloidWire represents a cancel order request by CLOID in wire format
 type cancelByCloidWire struct {
 	AssetId int64       `json:"asset"`
-	Cloid   common.Hash `json:"cloid"`
+	Cloid   types.Cloid `json:"cloid"`
 }
 
 // NewCancelRequestWithCloid creates a new cancel request with a CLOID
 func NewCancelRequestByCloid(
 	coin string,
-	cloid common.Hash,
+	cloid types.Cloid,
 ) CancelRequestByCloid {
 	return CancelRequestByCloid{
 		Coin:  coin,
@@ -136,7 +248,7 @@ func NewCancelRequestByCloid(
 }
 
 // toOrderWire converts OrderRequest to OrderWire
-func (o OrderRequest) toOrderWire(assetId int) (orderWire, error) {
+func (o orderRequest) toOrderWire(assetId int64) (orderWire, error) {
 	// Convert sizes and prices to wire format
 	sizeStr, err := floatToWire(o.Sz)
 	if err != nil {
@@ -161,7 +273,7 @@ func (o OrderRequest) toOrderWire(assetId int) (orderWire, error) {
 		S: sizeStr,
 		R: o.ReduceOnly,
 		T: orderTypeWire,
-		C: o.CLOID,
+		C: o.Cloid.ToPointer(),
 	}, nil
 }
 
@@ -196,7 +308,7 @@ func (t OrderType) toOrderTypeWire() (orderTypeWire, error) {
 }
 
 // toCancelWire converts CancelRequest to CancelWire
-func (c CancelRequest) toCancelWire(assetId int) cancelWire {
+func (c CancelRequest) toCancelWire(assetId int64) cancelWire {
 	return cancelWire{
 		AssetId: int64(assetId),
 		Oid:     int64(c.Oid),
@@ -204,7 +316,7 @@ func (c CancelRequest) toCancelWire(assetId int) cancelWire {
 }
 
 func (c CancelRequestByCloid) toCancelByCloidWire(
-	assetId int,
+	assetId int64,
 ) cancelByCloidWire {
 	return cancelByCloidWire{
 		AssetId: int64(assetId),
@@ -212,74 +324,96 @@ func (c CancelRequestByCloid) toCancelByCloidWire(
 	}
 }
 
-// TODO: Use optional here?
-// ordersToAction converts a list of OrderWires to an order action
-func ordersToAction(orders []orderWire, builder *BuilderInfo) map[string]any {
-	action := map[string]any{
-		"type":     "order",
-		"orders":   orders,
-		"grouping": "na",
+type orderActionWire struct {
+	Type     string        `json:"type"`
+	Orders   []orderWire   `json:"orders"`
+	Grouping OrderGrouping `json:"grouping"`
+	Builder  *BuilderInfo  `json:"builder,omitempty"`
+}
+
+type OrderGrouping string
+
+const (
+	OrderGroupingNA           = "na"
+	OrderGroupingNormalTpSl   = "normalTpsl"
+	OrderGroupingPositionTpSl = "positionTpsl"
+)
+
+func (o orderActionWire) getType() string {
+	return o.Type
+}
+
+func ordersToAction(
+	orders []orderWire,
+	builder mo.Option[BuilderInfo],
+	grouping mo.Option[OrderGrouping],
+) orderActionWire {
+	action := orderActionWire{
+		Type:   "order",
+		Orders: orders,
 	}
 
-	if builder != nil {
-		action["grouping"] = map[string]any{
-			"b": strings.ToLower(builder.PublicAddress.String()),
-			"f": builder.FeeAmount,
-		}
+	if g, ok := grouping.Get(); ok {
+		action.Grouping = g
+	} else {
+		action.Grouping = OrderGroupingNA
+	}
+
+	if b, ok := builder.Get(); ok {
+		action.Builder = &b
 	}
 
 	return action
 }
 
-type orderActionWire struct {
-	Type     string      `json:"type"`
-	Orders   []orderWire `json:"orders"`
-	Grouping string      `json:"grouping"`
+type cancelActionWire struct {
+	Type    string       `json:"type"`
+	Cancels []cancelWire `json:"cancels"`
 }
 
-func ordersToAction2(orders []orderWire, builder *BuilderInfo) orderActionWire {
-	return orderActionWire{
-		Type:     "order",
-		Orders:   orders,
-		Grouping: "na",
-	}
-	// action := map[string]any{
-	// 	"type":     "order",
-	// 	"orders":   orders,
-	// 	"grouping": "na",
-	// }
-
-	// if builder != nil {
-	// 	action["grouping"] = map[string]any{
-	// 		"b": strings.ToLower(builder.PublicAddress.String()),
-	// 		"f": builder.FeeAmount,
-	// 	}
-	// }
-
-	// return action
+func (c cancelActionWire) getType() string {
+	return c.Type
 }
 
 // cancelsToAction converts a list of CancelRequests to a cancel action
-func cancelsToAction(cancels []cancelWire) map[string]any {
-	return map[string]any{
-		"type":    "cancel",
-		"cancels": cancels,
+func cancelsToAction(cancels []cancelWire) cancelActionWire {
+	return cancelActionWire{
+		Type:    "cancel",
+		Cancels: cancels,
 	}
+}
+
+type cancelByCloidAction struct {
+	Type    string              `json:"type"`
+	Cancels []cancelByCloidWire `json:"cancels"`
+}
+
+func (c cancelByCloidAction) getType() string {
+	return c.Type
 }
 
 // cancelsByCloidToAction converts a list of CancelRequestsByCloid to a
 // cancelByCloid action
-func cancelsByCloidToAction(cancels []cancelByCloidWire) map[string]any {
-	return map[string]any{
-		"type":    "cancelByCloid",
-		"cancels": cancels,
+func cancelsByCloidToAction(cancels []cancelByCloidWire) cancelByCloidAction {
+	return cancelByCloidAction{
+		Type:    "cancelByCloid",
+		Cancels: cancels,
 	}
 }
 
+type batchModifyAction struct {
+	Type     string       `json:"type"`
+	Modifies []modifyWire `json:"modifies"`
+}
+
+func (b batchModifyAction) getType() string {
+	return b.Type
+}
+
 // modifiesToAction converts a list of ModifyWires to a batch modify action
-func modifiesToAction(modifies []modifyWire) map[string]any {
-	return map[string]any{
-		"type":     "batchModify",
-		"modifies": modifies,
+func modifiesToAction(modifies []modifyWire) batchModifyAction {
+	return batchModifyAction{
+		Type:     "batchModify",
+		Modifies: modifies,
 	}
 }

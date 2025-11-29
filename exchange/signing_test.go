@@ -5,7 +5,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/banky/go-hyperliquid/constants"
 	"github.com/banky/go-hyperliquid/rest"
+	"github.com/banky/go-hyperliquid/types"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/samber/mo"
@@ -47,24 +49,23 @@ func testExchange(isMainnet bool) *Exchange {
 
 func TestPhantomAgentCreation(t *testing.T) {
 	timestamp := 1677777606040
-	orderRequest := OrderRequest{
-		Coin:       "ETH",
-		IsBuy:      true,
-		Sz:         0.0147,
-		LimitPx:    1670.1,
-		ReduceOnly: false,
-		OrderType: OrderType{
-			Limit: &LimitOrder{
-				Tif: "Ioc",
-			},
-		},
-		CLOID: nil,
-	}
-	wire, err := orderRequest.toOrderWire(4)
+	order := NewOrderRequest(
+		"ETH",
+		true,
+		0.0147,
+		1670.1,
+		WithLimitOrder(LimitOrder{Tif: "Ioc"}),
+		WithReduceOnly(false),
+	)
+	wire, err := order.toOrderWire(4)
 	if err != nil {
 		t.Fatal(err)
 	}
-	action := ordersToAction2([]orderWire{wire}, nil)
+	action := ordersToAction(
+		[]orderWire{wire},
+		mo.None[BuilderInfo](),
+		mo.None[OrderGrouping](),
+	)
 	hash, err := hashAction(
 		action,
 		mo.None[common.Address](),
@@ -95,6 +96,119 @@ func TestPhantomAgentCreation(t *testing.T) {
 			connID.Hex(),
 		)
 	}
+}
+
+func TestL1SigningOrderWithCloidMatches(t *testing.T) {
+	privateKey, err := crypto.HexToECDSA(
+		"0123456789012345678901234567890123456789012345678901234567890123",
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	timestamp := 0
+	order := NewOrderRequest(
+		"ETH",
+		true,
+		100,
+		100,
+		WithLimitOrder(LimitOrder{Tif: "Gtc"}),
+		WithReduceOnly(false),
+		WithCloid(types.HexToCloid("0x00000000000000000000000000000001")),
+	)
+
+	wire, err := order.toOrderWire(1)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	action := ordersToAction(
+		[]orderWire{wire},
+		mo.None[BuilderInfo](),
+		mo.None[OrderGrouping](),
+	)
+
+	e, err := New(Config{
+		SkipInfo:   true,
+		PrivateKey: privateKey,
+	})
+
+	sig, err := signL1Action(e, action, uint64(timestamp))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	expectedR := common.HexToHash(
+		"0x41ae18e8239a56cacbc5dad94d45d0b747e5da11ad564077fcac71277a946e3",
+	)
+	expectedS := common.HexToHash(
+		"0x3c61f667e747404fe7eea8f90ab0e76cc12ce60270438b2058324681a00116da",
+	)
+	expectedV := byte(27)
+
+	if sig.R != expectedR {
+		t.Fatalf(
+			"R mismatch: expected %s, got %s",
+			expectedR.Hex(),
+			sig.R.Hex(),
+		)
+	}
+
+	if sig.S != expectedS {
+		t.Fatalf(
+			"S mismatch: expected %s, got %s",
+			expectedS.Hex(),
+			sig.S.Hex(),
+		)
+	}
+
+	if sig.V != expectedV {
+		t.Fatalf("V mismatch: expected %d, got %d", expectedV, sig.V)
+	}
+
+	eTestnet, err := New(Config{
+		BaseURL:    constants.TESTNET_API_URL,
+		SkipInfo:   true,
+		PrivateKey: privateKey,
+	})
+
+	sigTestnet, err := signL1Action(eTestnet, action, uint64(timestamp))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	expectedRTestnet := common.HexToHash(
+		"0xeba0664bed2676fc4e5a743bf89e5c7501aa6d870bdb9446e122c9466c5cd16d",
+	)
+	expectedSTestnet := common.HexToHash(
+		"0x7f3e74825c9114bc59086f1eebea2928c190fdfbfde144827cb02b85bbe90988",
+	)
+	expectedVTestnet := byte(28)
+
+	if sigTestnet.R != expectedRTestnet {
+		t.Fatalf(
+			"R mismatch: expected %s, got %s",
+			expectedRTestnet.Hex(),
+			sigTestnet.R.Hex(),
+		)
+	}
+
+	if sigTestnet.S != expectedSTestnet {
+		t.Fatalf(
+			"S mismatch: expected %s, got %s",
+			expectedSTestnet.Hex(),
+			sigTestnet.S.Hex(),
+		)
+	}
+
+	if sigTestnet.V != expectedVTestnet {
+		t.Fatalf(
+			"V mismatch: expected %d, got %d",
+			expectedVTestnet,
+			sigTestnet.V,
+		)
+	}
+
 }
 
 // func TestL1ActionSigningProducesValidSignature(t *testing.T) {

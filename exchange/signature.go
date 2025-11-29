@@ -4,12 +4,13 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 )
 
 type signature struct {
-	R [32]byte
-	S [32]byte
+	R common.Hash
+	S common.Hash
 	V byte
 }
 

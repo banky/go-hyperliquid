@@ -178,7 +178,7 @@ func TestRoundToSigfig(t *testing.T) {
 	t.Parallel()
 	type args struct {
 		x float64
-		n int
+		n int64
 	}
 
 	tests := []struct {
@@ -230,7 +230,7 @@ func TestRoundToDecimals(t *testing.T) {
 	t.Parallel()
 	type args struct {
 		x        float64
-		decimals int
+		decimals int64
 	}
 
 	tests := []struct {
@@ -325,8 +325,8 @@ func TestFloatToInt(t *testing.T) {
 	tests := []struct {
 		name    string
 		x       float64
-		power   int
-		want    int
+		power   int64
+		want    int64
 		wantErr bool
 	}{
 		{
@@ -406,7 +406,7 @@ func TestFloatToUsdInt(t *testing.T) {
 	tests := []struct {
 		name    string
 		x       float64
-		want    int
+		want    int64
 		wantErr bool
 	}{
 		{

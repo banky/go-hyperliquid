@@ -367,7 +367,7 @@ func TestSpotMetaSuccess(t *testing.T) {
 	t.Parallel()
 	expectedMeta := &SpotMeta{
 		Universe: []SpotAssetInfo{
-			{Name: "USDC", Tokens: [2]int{0, 1}, Index: 0, IsCanonical: true},
+			{Name: "USDC", Tokens: [2]int64{0, 1}, Index: 0, IsCanonical: true},
 		},
 		Tokens: []SpotTokenInfo{
 			{
@@ -1019,7 +1019,7 @@ func TestGetCoinFromNameNotFound(t *testing.T) {
 func TestGetAssetFound(t *testing.T) {
 	t.Parallel()
 	info := &Info{
-		coinToAsset: map[string]int{"BTC": 0, "ETH": 1},
+		coinToAsset: map[string]int64{"BTC": 0, "ETH": 1},
 		nameToCoin:  map[string]string{"Bitcoin": "BTC"},
 	}
 
@@ -1035,7 +1035,7 @@ func TestGetAssetFound(t *testing.T) {
 func TestGetAssetNotFound(t *testing.T) {
 	t.Parallel()
 	info := &Info{
-		coinToAsset: map[string]int{},
+		coinToAsset: map[string]int64{},
 		nameToCoin:  map[string]string{},
 	}
 

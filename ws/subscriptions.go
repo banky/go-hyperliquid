@@ -192,7 +192,7 @@ func newWSSubscription[T any](
 }
 
 // nextSubscriptionID increments and returns a unique subscription ID.
-func (m *Client) nextSubscriptionID() int {
+func (m *Client) nextSubscriptionID() int64 {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.subscriptionIDCounter++
@@ -203,7 +203,7 @@ func subscribe[T any](
 	m *Client,
 	sub SubscriptionType,
 	subscriberChan chan<- T,
-	id int,
+	id int64,
 ) error {
 	identifier := sub.identifier()
 	internalChan := make(chan T)
@@ -264,7 +264,7 @@ func deliveryLoop[T any](
 func unsubscribeInternal[T any](
 	m *Client,
 	sub SubscriptionType,
-	subscriptionID int,
+	subscriptionID int64,
 ) bool {
 	m.mu.Lock()
 	identifier := sub.identifier()

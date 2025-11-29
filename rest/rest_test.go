@@ -15,7 +15,7 @@ type testRequest struct {
 
 type testResponse struct {
 	Status string `json:"status"`
-	Value  int    `json:"value"`
+	Value  int64  `json:"value"`
 }
 
 func TestPostSuccess(t *testing.T) {

@@ -9,6 +9,9 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
+    env:
+      WALLET_PRIVATE_KEY: ${{ secrets.WALLET_PRIVATE_KEY }}
+      API_WALLET_PRIVATE_KEY: ${{ secrets.API_WALLET_PRIVATE_KEY }}
     strategy:
       matrix:
         go-version: ["1.24", "1.25"]

@@ -7,59 +7,34 @@ import (
 	"github.com/samber/mo"
 )
 
-// ===== Order Options =====
+/*//////////////////////////////////////////////////////////////
+                             ORDER
+//////////////////////////////////////////////////////////////*/
 
-// OrderOption is a functional option for Order operations
-type OrderOption func(*orderConfig)
+// CreateOrderOption is a functional option for Order operations
+type CreateOrderOption func(*createOrderConfig)
 
-type orderConfig struct {
-	reduceOnly bool
-	cloid      mo.Option[common.Hash]
-	builder    mo.Option[BuilderInfo]
+type createOrderConfig struct {
+	builder  mo.Option[BuilderInfo]
+	grouping mo.Option[OrderGrouping]
 }
 
-// WithOrderReduceOnly sets the reduce-only flag
-func WithOrderReduceOnly(reduceOnly bool) OrderOption {
-	return func(cfg *orderConfig) {
-		cfg.reduceOnly = reduceOnly
+// WithOrderBuilderInfo sets the builder info for the order
+func WithOrderBuilderInfo(builder BuilderInfo) CreateOrderOption {
+	return func(cfg *createOrderConfig) {
+		cfg.builder = mo.Some(builder)
 	}
 }
 
-// WithOrderCLOID sets the client order ID
-func WithOrderCLOID(cloid common.Hash) OrderOption {
-	return func(cfg *orderConfig) {
-		cfg.cloid = mo.Some(cloid)
+func WithOrderGrouping(grouping OrderGrouping) CreateOrderOption {
+	return func(cfg *createOrderConfig) {
+		cfg.grouping = mo.Some(grouping)
 	}
 }
 
-// withOrderCLOID is internally used for setting CLOID with an optional
-func withOrderCLOID(cloid mo.Option[common.Hash]) OrderOption {
-	return func(cfg *orderConfig) {
-		cfg.cloid = cloid
-	}
-}
-
-func defaultOrderConfig() orderConfig {
-	return orderConfig{
-		reduceOnly: false,
-	}
-}
-
-func (o orderConfig) getCLOID() *common.Hash {
-	if cloid, ok := o.cloid.Get(); ok {
-		return &cloid
-	}
-	return nil
-}
-
-func (o orderConfig) getBuilderInfo() *BuilderInfo {
-	if builderInfo, ok := o.builder.Get(); ok {
-		return &builderInfo
-	}
-	return nil
-}
-
-// ===== Market Order Options =====
+/*//////////////////////////////////////////////////////////////
+                          MARKET ORDER
+//////////////////////////////////////////////////////////////*/
 
 // MarketOrderOption is a functional option for market orders
 type MarketOrderOption func(*marketOrderConfig)
@@ -91,20 +66,9 @@ func WithMarketOrderCLOID(cloid common.Hash) MarketOrderOption {
 	}
 }
 
-func defaultMarketOrderConfig() marketOrderConfig {
-	return marketOrderConfig{
-		slippage: DEFAULT_SLIPPAGE,
-	}
-}
-
-func (m marketOrderConfig) getCLOID() *common.Hash {
-	if cloid, ok := m.cloid.Get(); ok {
-		return &cloid
-	}
-	return nil
-}
-
-// ===== Market Close Options =====
+/*//////////////////////////////////////////////////////////////
+                          MARKET CLOSE
+//////////////////////////////////////////////////////////////*/
 
 // MarketCloseOption is a functional option for market close operations
 type MarketCloseOption func(*marketCloseConfig)
@@ -143,13 +107,9 @@ func WithMarketCloseCLOID(cloid common.Hash) MarketCloseOption {
 	}
 }
 
-func defaultMarketCloseConfig() marketCloseConfig {
-	return marketCloseConfig{
-		slippage: DEFAULT_SLIPPAGE,
-	}
-}
-
-// ===== Modify Order Options =====
+/*//////////////////////////////////////////////////////////////
+                          MODIFY ORDER
+//////////////////////////////////////////////////////////////*/
 
 // ModifyOrderOption is a functional option for modify order operations
 type ModifyOrderOption func(*modifyOrderConfig)
@@ -165,13 +125,9 @@ func WithModifyOrderReduceOnly(reduceOnly bool) ModifyOrderOption {
 	}
 }
 
-func defaultModifyOrderConfig() modifyOrderConfig {
-	return modifyOrderConfig{
-		reduceOnly: false,
-	}
-}
-
-// ===== Schedule Cancel Options =====
+/*//////////////////////////////////////////////////////////////
+                        SCHEDULE CANCEL
+//////////////////////////////////////////////////////////////*/
 
 // ScheduleCancelOption is a functional option for modifying scheduled cancel
 type ScheduleCancelOption func(*scheduleCancelConfig)
@@ -186,11 +142,9 @@ func WithScheduleOptionTime(time time.Duration) ScheduleCancelOption {
 	}
 }
 
-func defaultScheduleCancelConfig() scheduleCancelConfig {
-	return scheduleCancelConfig{}
-}
-
-// ===== Approve Agent Options =====
+/*//////////////////////////////////////////////////////////////
+                         APPROVE AGENT
+//////////////////////////////////////////////////////////////*/
 
 // ApproveAgentOption is a functional option for approve agent operations
 type ApproveAgentOption func(*approveAgentConfig)
@@ -204,8 +158,4 @@ func WithAgentName(name string) ApproveAgentOption {
 	return func(cfg *approveAgentConfig) {
 		cfg.name = mo.Some(name)
 	}
-}
-
-func defaultApproveAgentConfig() approveAgentConfig {
-	return approveAgentConfig{}
 }

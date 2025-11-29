@@ -45,8 +45,8 @@ func floatToWire(x float64) (string, error) {
 	return formatted, nil
 }
 
-func floatToInt(x float64, power int) (int, error) {
-	withDecimals := x * math.Pow10(power)
+func floatToInt(x float64, power int64) (int64, error) {
+	withDecimals := x * math.Pow10(int(power))
 
 	rounded := math.Round(withDecimals)
 
@@ -55,10 +55,10 @@ func floatToInt(x float64, power int) (int, error) {
 		return 0, errors.New("float_to_int causes rounding")
 	}
 
-	return int(rounded), nil
+	return int64(rounded), nil
 }
 
-func floatToUsdInt(x float64) (int, error) {
+func floatToUsdInt(x float64) (int64, error) {
 	return floatToInt(x, 6)
 }
 
@@ -69,7 +69,7 @@ func stringToFloat(s string) (float64, error) {
 }
 
 // roundToSigfig rounds x to n significant figures.
-func roundToSigfig(x float64, n int) float64 {
+func roundToSigfig(x float64, n int64) float64 {
 	if x == 0 {
 		return 0
 	}
@@ -83,7 +83,7 @@ func roundToSigfig(x float64, n int) float64 {
 // - Uses banker's rounding (round half to even)
 // - Supports negative decimals (round to tens, hundreds, etc.)
 // - Identical to Python for all float64 values
-func roundToDecimals(x float64, ndigits int) float64 {
+func roundToDecimals(x float64, ndigits int64) float64 {
 	// Python: if ndigits is 0 or positive
 	if ndigits >= 0 {
 		factor := math.Pow(10, float64(ndigits))

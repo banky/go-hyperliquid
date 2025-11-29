@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/common/math"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/signer/core/apitypes"
@@ -17,8 +18,9 @@ import (
 
 // signL1Action signs an action using EIP-712 typed data signing
 // This implements the L1 action signing mechanism used by Hyperliquid
-func (e *Exchange) signL1Action(
-	action map[string]any,
+func signL1Action[T any](
+	e *Exchange,
+	action T,
 	nonce uint64,
 ) (signature, error) {
 	actionHash, err := hashAction(
@@ -322,6 +324,7 @@ func hashAction[T any](
 	}
 
 	data := buf.Bytes()
+	fmt.Println("msg pack", hexutil.Encode(data))
 
 	nonceBytes := make([]byte, 8)
 	binary.BigEndian.PutUint64(nonceBytes, nonce)

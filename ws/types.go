@@ -203,7 +203,7 @@ func (s ActiveAssetDataSubscription) subscriptionPayload() any {
 type L2Level struct {
 	Px string `json:"px"`
 	Sz string `json:"sz"`
-	N  int    `json:"n"`
+	N  int64  `json:"n"`
 }
 
 // AllMidsMessage contains all mid-prices
@@ -223,7 +223,7 @@ type Trade struct {
 	Coin string `json:"coin"`
 	Side string `json:"side"` // "A" or "B"
 	Px   string `json:"px"`
-	Sz   int    `json:"sz"`
+	Sz   int64  `json:"sz"`
 	Hash string `json:"hash"`
 	Time int64  `json:"time"`
 }
@@ -244,10 +244,10 @@ type Fill struct {
 	Dir           string `json:"dir"`
 	ClosedPnl     string `json:"closedPnl"`
 	Hash          string `json:"hash"`
-	Oid           int    `json:"oid"`
+	Oid           int64  `json:"oid"`
 	Crossed       bool   `json:"crossed"`
 	Fee           string `json:"fee"`
-	Tid           int    `json:"tid"`
+	Tid           int64  `json:"tid"`
 	FeeToken      string `json:"feeToken"`
 }
 
@@ -267,7 +267,7 @@ type UserFillsMessage struct {
 type BboData struct {
 	Px string `json:"px"`
 	Sz string `json:"sz"`
-	N  int    `json:"n"`
+	N  int64  `json:"n"`
 }
 
 // BboMessage contains best bid/offer data
@@ -340,7 +340,7 @@ type ActiveSpotAssetCtxMessage struct {
 // Leverage represents leverage info
 type Leverage struct {
 	Type   string  `json:"type"` // "cross" or "isolated"
-	Value  int     `json:"value"`
+	Value  int64   `json:"value"`
 	RawUsd *string `json:"rawUsd,omitempty"` // Only for isolated
 }
 

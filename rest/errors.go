@@ -9,7 +9,7 @@ import (
 )
 
 type ClientError struct {
-	StatusCode int
+	StatusCode int64
 	Code       string
 	Msg        string
 	Headers    http.Header
@@ -21,7 +21,7 @@ func (e *ClientError) Error() string {
 }
 
 type ServerError struct {
-	StatusCode int
+	StatusCode int64
 	Text       string
 }
 
@@ -36,7 +36,7 @@ type errorResponse struct {
 }
 
 func handleException(resp *resty.Response) error {
-	statusCode := resp.StatusCode()
+	statusCode := int64(resp.StatusCode())
 
 	if statusCode < 400 {
 		return nil

@@ -18,9 +18,9 @@ type Info struct {
 	ws   ws.ClientInterface
 
 	mu                sync.RWMutex
-	coinToAsset       map[string]int
+	coinToAsset       map[string]int64
 	nameToCoin        map[string]string
-	assetToSzDecimals map[int]int
+	assetToSzDecimals map[int64]int64
 }
 
 // Config for initializing the Info client
@@ -51,9 +51,9 @@ func New(cfg Config) (*Info, error) {
 	info := &Info{
 		rest:              client,
 		ws:                wsManager,
-		coinToAsset:       make(map[string]int),
+		coinToAsset:       make(map[string]int64),
 		nameToCoin:        make(map[string]string),
-		assetToSzDecimals: make(map[int]int),
+		assetToSzDecimals: make(map[int64]int64),
 	}
 
 	// Initialize metadata and coin/asset mappings
@@ -143,8 +143,9 @@ func (i *Info) initializeSpotMetadata(spotMeta *SpotMeta) {
 			quoteID := spot.Tokens[1]
 
 			// Access tokens by index
-			if baseID >= 0 && baseID < len(spotMeta.Tokens) && quoteID >= 0 &&
-				quoteID < len(spotMeta.Tokens) {
+			if baseID >= 0 && int(baseID) < len(spotMeta.Tokens) &&
+				quoteID >= 0 &&
+				int(quoteID) < len(spotMeta.Tokens) {
 				baseInfo := spotMeta.Tokens[baseID]
 				quoteInfo := spotMeta.Tokens[quoteID]
 				friendlyName := fmt.Sprintf(
@@ -162,7 +163,7 @@ func (i *Info) initializeSpotMetadata(spotMeta *SpotMeta) {
 }
 
 // setPerpMeta processes perpetual metadata for a specific DEX and asset offset
-func (i *Info) setPerpMeta(meta *Meta, offset int) {
+func (i *Info) setPerpMeta(meta *Meta, offset int64) {
 	if meta == nil {
 		return
 	}
@@ -171,7 +172,7 @@ func (i *Info) setPerpMeta(meta *Meta, offset int) {
 	defer i.mu.Unlock()
 
 	for idx, asset := range meta.Universe {
-		assetID := idx + offset
+		assetID := int64(idx) + offset
 		i.coinToAsset[asset.Name] = assetID
 		i.nameToCoin[asset.Name] = asset.Name
 		i.assetToSzDecimals[assetID] = asset.SzDecimals
@@ -263,13 +264,13 @@ func (i *Info) SpotMeta(ctx context.Context) (*SpotMeta, error) {
 }
 
 // AssetToSzDecimals retrieves the number of decimal places for a given asset.
-func (i *Info) AssetToSzDecimals(asset int) (int, bool) {
+func (i *Info) AssetToSzDecimals(asset int64) (int64, bool) {
 	szDecimals, ok := i.assetToSzDecimals[asset]
 	return szDecimals, ok
 }
 
 // CoinToAsset retrieves the asset ID for a given coin.
-func (i *Info) CoinToAsset(coin string) (int, bool) {
+func (i *Info) CoinToAsset(coin string) (int64, bool) {
 	assetID, ok := i.coinToAsset[coin]
 	return assetID, ok
 }
@@ -280,7 +281,7 @@ func (i *Info) NameToCoin(name string) (string, bool) {
 	return coin, ok
 }
 
-func (i *Info) NameToAsset(name string) (int, bool) {
+func (i *Info) NameToAsset(name string) (int64, bool) {
 	asset, ok := i.coinToAsset[i.nameToCoin[name]]
 	return asset, ok
 }
@@ -292,7 +293,7 @@ func (i *Info) UserState(
 	ctx context.Context,
 	address common.Address,
 	dex string,
-) (*UserState, error) {
+) (UserState, error) {
 	var result UserState
 	err := i.rest.Post(
 		ctx,
@@ -305,7 +306,7 @@ func (i *Info) UserState(
 		&result,
 	)
 
-	return &result, err
+	return result, err
 }
 
 // SpotUserState retrieves account portfolio and position data for spot trading.
@@ -656,10 +657,54 @@ func (i *Info) SetCoinMapping(coins []string) {
 }
 
 // GetAsset retrieves the asset ID for a given coin/name
-func (i *Info) GetAsset(name string) (int, bool) {
+func (i *Info) GetAsset(name string) (int64, bool) {
 	i.mu.RLock()
 	defer i.mu.RUnlock()
 
 	asset, ok := i.coinToAsset[i.nameToCoin[name]]
 	return asset, ok
+}
+
+// ===== Order Query Methods =====
+
+// QueryOrderByOid retrieves order status by order ID.
+func (i *Info) QueryOrderByOid(
+	ctx context.Context,
+	user common.Address,
+	oid int64,
+) (QueryOrderResponse, error) {
+	var result QueryOrderResponse
+	err := i.rest.Post(
+		ctx,
+		"/info",
+		map[string]any{
+			"type": "orderStatus",
+			"user": user,
+			"oid":  oid,
+		},
+		&result,
+	)
+
+	return result, err
+}
+
+// QueryOrderByCloid retrieves order status by client order ID.
+func (i *Info) QueryOrderByCloid(
+	ctx context.Context,
+	user common.Address,
+	cloid string,
+) (QueryOrderResponse, error) {
+	var result QueryOrderResponse
+	err := i.rest.Post(
+		ctx,
+		"/info",
+		map[string]any{
+			"type": "orderStatus",
+			"user": user,
+			"oid":  cloid,
+		},
+		&result,
+	)
+
+	return result, err
 }
