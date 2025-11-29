@@ -7,8 +7,11 @@ import (
 	"fmt"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/maxatome/go-testdeep/helpers/tdsuite"
+	"github.com/maxatome/go-testdeep/td"
 )
 
 // cassetteLoader loads cassettes from JSON files
@@ -128,8 +131,9 @@ func (crc *cassetteRestClient) IsMainnet() bool {
 // ===== Test Helpers =====
 
 // loadCassettes helper to load cassettes from files
+// Use testing.TB so it works with both *testing.T and *td.T via TB().
 func loadCassettes(
-	t *testing.T,
+	t testing.TB,
 	testCassetteNames ...string,
 ) *cassetteRestClient {
 	loader := newCassetteLoader()
@@ -147,26 +151,31 @@ func loadCassettes(
 		// Also register the cassette under the request type key for automatic
 		// lookup
 		// Register common mappings
-		if testName == "test_get_all_mids" {
+		switch testName {
+		case "test_get_all_mids":
 			client.registerCassette("allMids", testName)
-		} else if testName == "test_get_user_state" {
+		case "test_get_user_state":
 			client.registerCassette("clearinghouseState", testName)
-		} else if testName == "test_get_open_orders" {
+		case "test_get_open_orders":
 			client.registerCassette("openOrders", testName)
-		} else if testName == "test_get_user_fills" {
+		case "test_get_user_fills":
 			client.registerCassette("userFills", testName)
-		} else if testName == "test_get_user_fills_by_time" {
+		case "test_get_user_fills_by_time":
 			client.registerCassette("userFillsByTime", testName)
-		} else if testName == "test_get_info" {
+		case "test_get_info":
 			client.registerCassette("meta", testName)
-		} else if testName == "test_get_funding_history[None]" {
+		case "test_get_funding_history[None]":
 			client.registerCassette("fundingHistory", testName)
-		} else if testName == "test_get_l2_snapshot" {
+		case "test_get_l2_snapshot":
 			client.registerCassette("l2Book", testName)
-		} else if testName == "test_get_candles_snapshot" {
+		case "test_get_candles_snapshot":
 			client.registerCassette("candleSnapshot", testName)
-		} else if testName == "test_user_funding_history_with_end_time" {
+		case "test_user_funding_history_with_end_time":
 			client.registerCassette("userFunding", testName)
+		case "test_spot_user_state":
+			client.registerCassette("spotClearinghouseState", testName)
+		case "test_user_fees":
+			client.registerCassette("userFees", testName)
 		}
 	}
 
@@ -179,43 +188,37 @@ func loadCassetteFile(name string) ([]byte, error) {
 	return os.ReadFile(filename)
 }
 
-// ===== Cassette-Based Tests (from Python test suite) =====
+// ===== Suite definition =====
 
-func TestCassette_AllMids(t *testing.T) {
-	t.Parallel()
-	client := loadCassettes(t, "test_get_all_mids")
+type InfoCassetteSuite struct{}
+
+func (s *InfoCassetteSuite) Setup(t *td.T) error {
+	return nil
+}
+
+func TestInfoCassetteSuite(t *testing.T) {
+	tdsuite.Run(t, &InfoCassetteSuite{})
+}
+
+// ===== Cassette-Based Tests as suite methods =====
+
+func (s *InfoCassetteSuite) TestAllMids(assert, require *td.T) {
+	client := loadCassettes(require.TB, "test_get_all_mids")
 	info := &Info{rest: client}
 
 	mids, err := info.AllMids(context.Background(), "")
-	if err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
+	require.CmpNoError(err)
+	require.NotNil(mids)
 
 	// From Python test: checks for BTC, ETH, ATOM, MATIC
-	if mids == nil {
-		t.Fatal("expected mids to be non-nil")
-	}
-	if btc, ok := mids["BTC"]; !ok {
-		t.Fatal("expected BTC in mids")
-	} else if btc != "30135.0" {
-		t.Errorf("expected BTC=30135.0, got %s", btc)
-	}
-	if eth, ok := mids["ETH"]; !ok {
-		t.Fatal("expected ETH in mids")
-	} else if eth != "1903.95" {
-		t.Errorf("expected ETH=1903.95, got %s", eth)
-	}
-	if _, ok := mids["ATOM"]; !ok {
-		t.Fatal("expected ATOM in mids")
-	}
-	if _, ok := mids["MATIC"]; !ok {
-		t.Fatal("expected MATIC in mids")
-	}
+	require.Cmp(mids["BTC"], 30135.0)
+	require.Cmp(mids["ETH"], 1903.95)
+	require.ContainsKey(mids, "ATOM")
+	require.ContainsKey(mids, "MATIC")
 }
 
-func TestCassette_UserState(t *testing.T) {
-	t.Parallel()
-	client := loadCassettes(t, "test_get_user_state")
+func (s *InfoCassetteSuite) TestUserState(assert, require *td.T) {
+	client := loadCassettes(require.TB, "test_get_user_state")
 	info := &Info{rest: client}
 
 	response, err := info.UserState(
@@ -223,169 +226,112 @@ func TestCassette_UserState(t *testing.T) {
 		common.HexToAddress("0x5e9ee1089755c3435139848e47e6635505d5a13a"),
 		"",
 	)
-	if err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
+	require.CmpNoError(err)
+	require.NotNil(response)
 
 	// From Python test: checks assetPositions length and marginSummary
-	if len(response.AssetPositions) != 12 {
-		t.Errorf(
-			"expected 12 asset positions, got %d",
-			len(response.AssetPositions),
-		)
-	}
-	if response.MarginSummary.AccountValue != "1182.312496" {
-		t.Errorf(
-			"expected accountValue=1182.312496, got %s",
-			response.MarginSummary.AccountValue,
-		)
-	}
+	require.Cmp(len(response.AssetPositions), 12)
+	require.Cmp(response.MarginSummary.AccountValue.Raw(), 1182.312496)
 }
 
-func TestCassette_OpenOrders(t *testing.T) {
-	t.Parallel()
-	client := loadCassettes(t, "test_get_open_orders")
+func (s *InfoCassetteSuite) TestOpenOrders(assert, require *td.T) {
+	client := loadCassettes(require.TB, "test_get_open_orders")
 	info := &Info{rest: client}
 
 	response, err := info.OpenOrders(
 		context.Background(),
-		"0x5e9ee1089755c3435139848e47e6635505d5a13a",
+		common.HexToAddress("0x5e9ee1089755c3435139848e47e6635505d5a13a"),
 		"",
 	)
-	if err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
+	require.CmpNoError(err)
+	require.NotNil(response)
 
 	// From Python test: checks response length
-	if len(response) != 196 {
-		t.Errorf("expected 196 open orders, got %d", len(response))
-	}
+	require.Cmp(len(response), 196)
 }
 
-func TestCassette_AllMidsWithNames(t *testing.T) {
-	t.Parallel()
-	client := loadCassettes(t, "test_get_all_mids")
+func (s *InfoCassetteSuite) TestAllMidsWithNames(assert, require *td.T) {
+	client := loadCassettes(require.TB, "test_get_all_mids")
 	info := &Info{rest: client}
 
 	response, err := info.AllMids(context.Background(), "")
-	if err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
+	require.CmpNoError(err)
+	require.NotNil(response)
 
 	// From Python test: test_get_all_mids checks for asset names
 	coins := []string{"BTC", "ETH", "ATOM", "MATIC"}
 	for _, coin := range coins {
-		if _, ok := response[coin]; !ok {
-			t.Errorf("expected %s in response", coin)
-		}
+		require.ContainsKey(response, coin)
 	}
 }
 
-func TestCassette_AllMidsCoinsPresent(t *testing.T) {
-	t.Parallel()
-	client := loadCassettes(t, "test_get_all_mids")
+func (s *InfoCassetteSuite) TestAllMidsCoinsPresent(assert, require *td.T) {
+	client := loadCassettes(require.TB, "test_get_all_mids")
 	info := &Info{rest: client}
 
 	mids, err := info.AllMids(context.Background(), "")
-	if err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
+	require.CmpNoError(err)
+	require.NotNil(mids)
 
 	// From Python test: checks for BTC, ETH, ATOM, MATIC
-	if _, ok := mids["BTC"]; !ok {
-		t.Fatal("expected BTC in mids")
-	}
-	if _, ok := mids["ETH"]; !ok {
-		t.Fatal("expected ETH in mids")
-	}
-	if _, ok := mids["ATOM"]; !ok {
-		t.Fatal("expected ATOM in mids")
-	}
-	if _, ok := mids["MATIC"]; !ok {
-		t.Fatal("expected MATIC in mids")
-	}
+	require.ContainsKey(mids, "BTC")
+	require.ContainsKey(mids, "ETH")
+	require.ContainsKey(mids, "ATOM")
+	require.ContainsKey(mids, "MATIC")
 }
 
-func TestCassette_UserFills(t *testing.T) {
-	t.Parallel()
-	client := loadCassettes(t, "test_get_user_fills")
+func (s *InfoCassetteSuite) TestUserFills(assert, require *td.T) {
+	client := loadCassettes(require.TB, "test_get_user_fills")
 	info := &Info{rest: client}
 
 	response, err := info.UserFills(
 		context.Background(),
-		"0xb7b6f3cea3f66bf525f5d8f965f6dbf6d9b017b2",
+		common.HexToAddress("0xb7b6f3cea3f66bf525f5d8f965f6dbf6d9b017b2"),
 	)
-	if err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
+	require.CmpNoError(err)
+	require.NotNil(response)
 
 	// From Python test: checks response is a list and first fill has "crossed"
 	// = true
-	if response == nil {
-		t.Fatal("expected response to be non-nil")
-	}
-	if len(response) == 0 {
-		t.Fatal("expected non-empty response")
-	}
-	// Check structure (actual field names depend on Fill struct)
-	if response[0].Coin == "" {
-		t.Errorf("expected first fill to have a coin")
-	}
+	require.Gt(len(response), 0)
+	require.NotEmpty(response[0].Coin)
 }
 
-func TestCassette_UserFillsByTime(t *testing.T) {
-	t.Parallel()
-	client := loadCassettes(t, "test_get_user_fills_by_time")
+func (s *InfoCassetteSuite) TestUserFillsByTime(assert, require *td.T) {
+	client := loadCassettes(require.TB, "test_get_user_fills_by_time")
 	info := &Info{rest: client}
 
 	response, err := info.UserFillsByTime(
 		context.Background(),
-		"0xb7b6f3cea3f66bf525f5d8f965f6dbf6d9b017b2",
+		common.HexToAddress("0xb7b6f3cea3f66bf525f5d8f965f6dbf6d9b017b2"),
 		1683245555699,
 		nil,
 		true,
 	)
-	if err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
+	require.CmpNoError(err)
+	require.NotNil(response)
 
 	// From Python test: checks response length is 500
-	if len(response) != 500 {
-		t.Errorf("expected 500 fills, got %d", len(response))
-	}
+	require.Cmp(len(response), 500)
 }
 
-func TestCassette_Meta(t *testing.T) {
-	t.Parallel()
-	client := loadCassettes(t, "test_get_info")
+func (s *InfoCassetteSuite) TestMeta(assert, require *td.T) {
+	client := loadCassettes(require.TB, "test_get_info")
 	info := &Info{rest: client}
 
 	response, err := info.Meta(context.Background(), "")
-	if err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
+	require.CmpNoError(err)
+	require.NotNil(response)
 
 	// From Python test: checks universe length and first asset
-	if len(response.Universe) != 28 {
-		t.Errorf("expected 28 assets, got %d", len(response.Universe))
-	}
-	if len(response.Universe) > 0 && response.Universe[0].Name != "BTC" {
-		t.Errorf(
-			"expected first asset to be BTC, got %s",
-			response.Universe[0].Name,
-		)
-	}
-	if len(response.Universe) > 0 && response.Universe[0].SzDecimals != 5 {
-		t.Errorf(
-			"expected BTC szDecimals=5, got %d",
-			response.Universe[0].SzDecimals,
-		)
-	}
+	require.Cmp(len(response.Universe), 28)
+	require.Gt(len(response.Universe), 0)
+	require.Cmp(response.Universe[0].Name, "BTC")
+	require.Cmp(response.Universe[0].SzDecimals, int64(5))
 }
 
-func TestCassette_FundingHistory(t *testing.T) {
-	t.Parallel()
-	client := loadCassettes(t, "test_get_funding_history[None]")
+func (s *InfoCassetteSuite) TestFundingHistory(assert, require *td.T) {
+	client := loadCassettes(require.TB, "test_get_funding_history[None]")
 	info := &Info{rest: client}
 
 	response, err := info.FundingHistory(
@@ -394,57 +340,35 @@ func TestCassette_FundingHistory(t *testing.T) {
 		1681923833000,
 		nil,
 	)
-	if err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
+	require.CmpNoError(err)
+	require.NotNil(response)
 
 	// From Python test: checks response is non-empty and has correct structure
-	if len(response) == 0 {
-		t.Fatal("expected non-empty funding history")
-	}
-	if response[0].Coin != "BTC" {
-		t.Errorf("expected coin=BTC, got %s", response[0].Coin)
-	}
+	require.Gt(len(response), 0)
+	require.Cmp(response[0].Coin, "BTC")
 	// Check expected fields exist
-	if response[0].FundingRate == "" {
-		t.Error("expected fundingRate field")
-	}
-	if response[0].Premium == "" {
-		t.Error("expected premium field")
-	}
-	if response[0].Time == 0 {
-		t.Error("expected time field")
-	}
+	require.NotZero(response[0].FundingRate)
+	require.NotZero(response[0].Premium)
+	require.NotZero(response[0].Time)
 }
 
-func TestCassette_L2Snapshot(t *testing.T) {
-	t.Parallel()
-	client := loadCassettes(t, "test_get_l2_snapshot")
+func (s *InfoCassetteSuite) TestL2Snapshot(assert, require *td.T) {
+	client := loadCassettes(require.TB, "test_get_l2_snapshot")
 	info := &Info{rest: client, nameToCoin: map[string]string{"DYDX": "DYDX"}}
 
 	response, err := info.L2Snapshot(context.Background(), "DYDX")
-	if err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
+	require.CmpNoError(err)
+	require.NotNil(response)
 
 	// From Python test: checks response structure
-	if len(response.Levels) != 2 {
-		t.Errorf("expected 2 levels, got %d", len(response.Levels))
-	}
-	if response.Coin != "DYDX" {
-		t.Errorf("expected coin=DYDX, got %s", response.Coin)
-	}
-	if len(response.Levels) > 0 && len(response.Levels[0]) == 0 {
-		t.Error("expected bids to be non-empty")
-	}
-	if len(response.Levels) > 1 && len(response.Levels[1]) == 0 {
-		t.Error("expected asks to be non-empty")
-	}
+	require.Cmp(len(response.Levels), 2)
+	require.Cmp(response.Coin, "DYDX")
+	require.Gt(len(response.Levels[0]), 0)
+	require.Gt(len(response.Levels[1]), 0)
 }
 
-func TestCassette_CandlesSnapshot(t *testing.T) {
-	t.Parallel()
-	client := loadCassettes(t, "test_get_candles_snapshot")
+func (s *InfoCassetteSuite) TestCandlesSnapshot(assert, require *td.T) {
+	client := loadCassettes(require.TB, "test_get_candles_snapshot")
 	info := &Info{rest: client, nameToCoin: map[string]string{"kPEPE": "kPEPE"}}
 
 	response, err := info.CandlesSnapshot(
@@ -454,48 +378,86 @@ func TestCassette_CandlesSnapshot(t *testing.T) {
 		1684702007000,
 		1684784807000,
 	)
-	if err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
+	require.CmpNoError(err)
+	require.NotNil(response)
 
 	// From Python test: checks response length and structure
-	if len(response) != 24 {
-		t.Errorf("expected 24 candles, got %d", len(response))
-	}
+	require.Cmp(len(response), 24)
 	// Check expected candle fields
-	if len(response) > 0 {
-		candle := response[0]
-		if candle.T == 0 {
-			t.Error("expected time field")
-		}
-		if candle.O == "" {
-			t.Error("expected open field")
-		}
-		if candle.C == "" {
-			t.Error("expected close field")
-		}
-	}
+	require.Gt(len(response), 0)
+	candle := response[0]
+	require.NotZero(candle.T)
+	require.NotZero(candle.O)
+	require.NotZero(candle.C)
 }
 
-func TestCassette_UserFundingHistory(t *testing.T) {
-	t.Parallel()
-	client := loadCassettes(t, "test_user_funding_history_with_end_time")
+func (s *InfoCassetteSuite) TestUserFundingHistory(assert, require *td.T) {
+	client := loadCassettes(
+		require.TB,
+		"test_user_funding_history_with_end_time",
+	)
 	info := &Info{rest: client}
 
 	// UserFundingHistory takes int64 values, not pointers
-	var endTime int64 = 1682010233000
+	var endTime time.Time = time.UnixMilli(1682010233000)
 	response, err := info.UserFundingHistory(
 		context.Background(),
-		"0xb7b6f3cea3f66bf525f5d8f965f6dbf6d9b017b2",
-		1681923833000,
+		common.HexToAddress("0xb7b6f3cea3f66bf525f5d8f965f6dbf6d9b017b2"),
+		time.UnixMilli(1681923833000),
 		&endTime,
 	)
-	if err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
 
-	// From Python test: checks response is list and has expected fields
-	if response == nil {
-		t.Fatal("expected response to be non-nil")
-	}
+	require.CmpNoError(err)
+	require.NotNil(response)
+	require.Cmp(len(response), 13, "Unexpected number of responses")
+}
+
+func (s *InfoCassetteSuite) TestSpotUserState(assert, require *td.T) {
+	client := loadCassettes(require.TB, "test_spot_user_state")
+	info := &Info{rest: client}
+
+	response, err := info.SpotUserState(
+		context.Background(),
+		common.HexToAddress("0x5e9ee1089755c3435139848e47e6635505d5a13a"),
+	)
+	require.CmpNoError(err)
+	require.NotNil(response)
+
+	// From cassette: checks balances length and structure
+	require.Cmp(len(response.Balances), 2)
+	require.Cmp(response.Balances[0].Coin, "USDC")
+	require.NotZero(response.Balances[0].Total)
+	require.Cmp(response.Balances[1].Coin, "UETH")
+	require.NotZero(response.Balances[1].EntryNtl)
+}
+
+func (s *InfoCassetteSuite) TestUserFees(assert, require *td.T) {
+	client := loadCassettes(require.TB, "test_user_fees")
+	info := &Info{rest: client}
+
+	feeInfo, err := info.UserFees(
+		context.Background(),
+		common.HexToAddress("0xb7b6f3cea3f66bf525f5d8f965f6dbf6d9b017b2"),
+	)
+	require.CmpNoError(err)
+
+	// From cassette: checks daily volume data
+	require.Cmp(len(feeInfo.DailyUserVlm), 15)
+	require.Cmp(feeInfo.DailyUserVlm[0].Date, "2025-11-15")
+	require.NotZero(feeInfo.DailyUserVlm[0].Exchange)
+
+	// Check fee schedule structure
+	require.NotZero(feeInfo.FeeSchedule.Cross)
+	require.Cmp(len(feeInfo.FeeSchedule.Tiers.Vip), 6)
+	require.Cmp(len(feeInfo.FeeSchedule.Tiers.Mm), 3)
+	require.Cmp(len(feeInfo.FeeSchedule.StakingDiscountTiers), 7)
+
+	// Check user's current rates
+	require.NotZero(feeInfo.UserCrossRate)
+	require.NotZero(feeInfo.UserAddRate)
+	require.NotZero(feeInfo.UserSpotCrossRate)
+	require.NotZero(feeInfo.UserSpotAddRate)
+
+	// Check active staking discount
+	require.NotNil(feeInfo.ActiveStakingDiscount)
 }

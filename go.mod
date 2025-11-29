@@ -7,6 +7,7 @@ require (
 	github.com/ethereum/go-ethereum v1.16.7
 	github.com/go-resty/resty/v2 v2.17.0
 	github.com/joho/godotenv v1.5.1
+	github.com/maxatome/go-testdeep v1.14.0
 	github.com/samber/mo v1.16.0
 	github.com/vmihailenco/msgpack/v5 v5.4.1
 )
@@ -17,6 +18,7 @@ require (
 	github.com/consensys/gnark-crypto v0.18.0 // indirect
 	github.com/crate-crypto/go-eth-kzg v1.4.0 // indirect
 	github.com/crate-crypto/go-ipa v0.0.0-20240724233137-53bbb0ceb27a // indirect
+	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.0.1 // indirect
 	github.com/ethereum/c-kzg-4844/v2 v2.1.5 // indirect
 	github.com/ethereum/go-verkle v0.2.2 // indirect

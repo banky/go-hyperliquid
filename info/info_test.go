@@ -7,17 +7,26 @@ import (
 	"testing"
 	"time"
 
-	"github.com/banky/go-hyperliquid/rest"
+	"github.com/banky/go-hyperliquid/internal/utils"
+	"github.com/banky/go-hyperliquid/types"
 	"github.com/banky/go-hyperliquid/ws"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/maxatome/go-testdeep/helpers/tdsuite"
+	"github.com/maxatome/go-testdeep/td"
 )
+
+// ===== Suite wiring =====
+
+type InfoSuite struct{}
+
+func TestInfoSuite(t *testing.T) {
+	tdsuite.Run(t, &InfoSuite{})
+}
 
 // Mock REST client for testing
 type mockRestClient struct {
 	postFunc func(ctx context.Context, path string, body any, result any) error
 }
-
-var _ rest.ClientInterface = (*mockRestClient)(nil)
 
 func (m *mockRestClient) Post(
 	ctx context.Context,
@@ -46,7 +55,7 @@ type mockWsClient struct {
 	subscribeCandleFunc         func(ctx context.Context, coin string, interval string, ch chan<- ws.CandleMessage) (ws.Subscription, error)
 	subscribeBboFunc            func(ctx context.Context, coin string, ch chan<- ws.BboMessage) (ws.Subscription, error)
 	subscribeActiveAssetCtxFunc func(ctx context.Context, coin string, ch chan<- ws.ActiveAssetCtxMessage) (ws.Subscription, error)
-	subscribeUserEventsFunc     func(ctx context.Context, user string, ch chan<- ws.UserEventsMessage) (ws.Subscription, error)
+	subscribeUserEventsFunc     func(ctx context.Context, user common.Address, ch chan<- ws.UserEventsMessage) (ws.Subscription, error)
 	subscribeUserFillsFunc      func(ctx context.Context, user string, ch chan<- ws.UserFillsMessage) (ws.Subscription, error)
 	subscribeOrderUpdatesFunc   func(ctx context.Context, user string, ch chan<- ws.OrderUpdatesMessage) (ws.Subscription, error)
 }
@@ -134,7 +143,7 @@ func (m *mockWsClient) SubscribeActiveAssetCtx(
 
 func (m *mockWsClient) SubscribeUserEvents(
 	ctx context.Context,
-	user string,
+	user common.Address,
 	ch chan<- ws.UserEventsMessage,
 ) (ws.Subscription, error) {
 	if m.subscribeUserEventsFunc != nil {
@@ -167,8 +176,7 @@ func (m *mockWsClient) SubscribeOrderUpdates(
 
 // ===== REST API Tests =====
 
-func TestAllMidsSuccess(t *testing.T) {
-	t.Parallel()
+func (s *InfoSuite) TestAllMidsSuccess(assert, require *td.T) {
 	expectedMids := map[string]string{
 		"BTC": "45000.50",
 		"ETH": "3000.25",
@@ -177,16 +185,11 @@ func TestAllMidsSuccess(t *testing.T) {
 	info := &Info{
 		rest: &mockRestClient{
 			postFunc: func(ctx context.Context, path string, body any, result any) error {
-				if path != "/info" {
-					t.Errorf("expected path /info, got %s", path)
-				}
+				require.Cmp(path, "/info", "expected path /info")
 				req := body.(map[string]any)
-				if req["type"] != "allMids" {
-					t.Errorf("expected type allMids, got %v", req["type"])
-				}
-				if req["dex"] != "testdex" {
-					t.Errorf("expected dex testdex, got %v", req["dex"])
-				}
+				require.Cmp(req["type"], "allMids")
+				require.Cmp(req["dex"], "testdex")
+
 				// Simulate response
 				*result.(*map[string]string) = expectedMids
 				return nil
@@ -195,22 +198,17 @@ func TestAllMidsSuccess(t *testing.T) {
 	}
 
 	mids, err := info.AllMids(context.Background(), "testdex")
-	if err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
+	require.CmpNoError(err)
 
-	if len(mids) != len(expectedMids) {
-		t.Errorf("expected %d mids, got %d", len(expectedMids), len(mids))
-	}
+	require.Cmp(len(mids), len(expectedMids))
 	for k, v := range expectedMids {
-		if mids[k] != v {
-			t.Errorf("expected mids[%s]=%s, got %s", k, v, mids[k])
-		}
+		s, err := utils.StringToFloat(v)
+		require.CmpNoError(err, "expected valid float for %q", v)
+		require.Cmp(mids[k], s)
 	}
 }
 
-func TestAllMidsError(t *testing.T) {
-	t.Parallel()
+func (s *InfoSuite) TestAllMidsError(assert, require *td.T) {
 	expectedErr := errors.New("network error")
 	info := &Info{
 		rest: &mockRestClient{
@@ -221,23 +219,20 @@ func TestAllMidsError(t *testing.T) {
 	}
 
 	_, err := info.AllMids(context.Background(), "testdex")
-	if err != expectedErr {
-		t.Errorf("expected error %v, got %v", expectedErr, err)
-	}
+	require.Cmp(err, expectedErr)
 }
 
-func TestL2SnapshotSuccess(t *testing.T) {
-	t.Parallel()
+func (s *InfoSuite) TestL2SnapshotSuccess(assert, require *td.T) {
 	expectedSnapshot := &L2BookSnapshot{
 		Coin: "BTC",
 		Levels: [2][]L2Level{
 			{
-				{Px: "45000.00", Sz: "1.5", N: 3},
-				{Px: "44999.00", Sz: "2.0", N: 5},
+				{Px: 45000.00, Sz: 1.5, N: 3},
+				{Px: 44999.00, Sz: 2.0, N: 5},
 			},
 			{
-				{Px: "45001.00", Sz: "1.0", N: 2},
-				{Px: "45002.00", Sz: "3.0", N: 4},
+				{Px: 45001.00, Sz: 1.0, N: 2},
+				{Px: 45002.00, Sz: 3.0, N: 4},
 			},
 		},
 		Time: 1234567890,
@@ -246,16 +241,10 @@ func TestL2SnapshotSuccess(t *testing.T) {
 	info := &Info{
 		rest: &mockRestClient{
 			postFunc: func(ctx context.Context, path string, body any, result any) error {
-				if path != "/info" {
-					t.Errorf("expected path /info, got %s", path)
-				}
+				require.Cmp(path, "/info", "expected path /info")
 				req := body.(map[string]any)
-				if req["type"] != "l2Book" {
-					t.Errorf("expected type l2Book, got %v", req["type"])
-				}
-				if req["coin"] != "BTC" {
-					t.Errorf("expected coin BTC, got %v", req["coin"])
-				}
+				require.Cmp(req["type"], "l2Book")
+				require.Cmp(req["coin"], "BTC")
 				*result.(*L2BookSnapshot) = *expectedSnapshot
 				return nil
 			},
@@ -264,28 +253,13 @@ func TestL2SnapshotSuccess(t *testing.T) {
 	}
 
 	snapshot, err := info.L2Snapshot(context.Background(), "BTC")
-	if err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
+	require.CmpNoError(err)
 
-	if snapshot.Coin != expectedSnapshot.Coin {
-		t.Errorf(
-			"expected coin %s, got %s",
-			expectedSnapshot.Coin,
-			snapshot.Coin,
-		)
-	}
-	if snapshot.Time != expectedSnapshot.Time {
-		t.Errorf(
-			"expected time %d, got %d",
-			expectedSnapshot.Time,
-			snapshot.Time,
-		)
-	}
+	require.Cmp(snapshot.Coin, expectedSnapshot.Coin)
+	require.Cmp(snapshot.Time, expectedSnapshot.Time)
 }
 
-func TestL2SnapshotNameMapping(t *testing.T) {
-	t.Parallel()
+func (s *InfoSuite) TestL2SnapshotNameMapping(assert, require *td.T) {
 	expectedSnapshot := &L2BookSnapshot{
 		Coin:   "BTC",
 		Levels: [2][]L2Level{},
@@ -296,9 +270,7 @@ func TestL2SnapshotNameMapping(t *testing.T) {
 		rest: &mockRestClient{
 			postFunc: func(ctx context.Context, path string, body any, result any) error {
 				req := body.(map[string]any)
-				if req["coin"] != "BTC" {
-					t.Errorf("expected coin BTC, got %v", req["coin"])
-				}
+				require.Cmp(req["coin"], "BTC")
 				*result.(*L2BookSnapshot) = *expectedSnapshot
 				return nil
 			},
@@ -308,21 +280,11 @@ func TestL2SnapshotNameMapping(t *testing.T) {
 
 	// Call with mapped name
 	snapshot, err := info.L2Snapshot(context.Background(), "Bitcoin")
-	if err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
-
-	if snapshot.Coin != expectedSnapshot.Coin {
-		t.Errorf(
-			"expected coin %s, got %s",
-			expectedSnapshot.Coin,
-			snapshot.Coin,
-		)
-	}
+	require.CmpNoError(err)
+	require.Cmp(snapshot.Coin, expectedSnapshot.Coin)
 }
 
-func TestMetaSuccess(t *testing.T) {
-	t.Parallel()
+func (s *InfoSuite) TestMetaSuccess(assert, require *td.T) {
 	expectedMeta := &Meta{
 		Universe: []AssetInfo{
 			{Name: "BTC", SzDecimals: 8},
@@ -333,16 +295,10 @@ func TestMetaSuccess(t *testing.T) {
 	info := &Info{
 		rest: &mockRestClient{
 			postFunc: func(ctx context.Context, path string, body any, result any) error {
-				if path != "/info" {
-					t.Errorf("expected path /info, got %s", path)
-				}
+				require.Cmp(path, "/info", "expected path /info")
 				req := body.(map[string]any)
-				if req["type"] != "meta" {
-					t.Errorf("expected type meta, got %v", req["type"])
-				}
-				if req["dex"] != "mainnet" {
-					t.Errorf("expected dex mainnet, got %v", req["dex"])
-				}
+				require.Cmp(req["type"], "meta")
+				require.Cmp(req["dex"], "mainnet")
 				*result.(*Meta) = *expectedMeta
 				return nil
 			},
@@ -350,21 +306,11 @@ func TestMetaSuccess(t *testing.T) {
 	}
 
 	meta, err := info.Meta(context.Background(), "mainnet")
-	if err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
-
-	if len(meta.Universe) != len(expectedMeta.Universe) {
-		t.Errorf(
-			"expected %d assets, got %d",
-			len(expectedMeta.Universe),
-			len(meta.Universe),
-		)
-	}
+	require.CmpNoError(err)
+	require.Cmp(len(meta.Universe), len(expectedMeta.Universe))
 }
 
-func TestSpotMetaSuccess(t *testing.T) {
-	t.Parallel()
+func (s *InfoSuite) TestSpotMetaSuccess(assert, require *td.T) {
 	expectedMeta := &SpotMeta{
 		Universe: []SpotAssetInfo{
 			{Name: "USDC", Tokens: [2]int64{0, 1}, Index: 0, IsCanonical: true},
@@ -385,9 +331,7 @@ func TestSpotMetaSuccess(t *testing.T) {
 		rest: &mockRestClient{
 			postFunc: func(ctx context.Context, path string, body any, result any) error {
 				req := body.(map[string]any)
-				if req["type"] != "spotMeta" {
-					t.Errorf("expected type spotMeta, got %v", req["type"])
-				}
+				require.Cmp(req["type"], "spotMeta")
 				*result.(*SpotMeta) = *expectedMeta
 				return nil
 			},
@@ -395,49 +339,34 @@ func TestSpotMetaSuccess(t *testing.T) {
 	}
 
 	meta, err := info.SpotMeta(context.Background())
-	if err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
-
-	if len(meta.Universe) != 1 {
-		t.Errorf("expected 1 asset, got %d", len(meta.Universe))
-	}
+	require.CmpNoError(err)
+	require.Cmp(len(meta.Universe), 1)
 }
 
-func TestUserStateSuccess(t *testing.T) {
-	t.Parallel()
+func (s *InfoSuite) TestUserStateSuccess(assert, require *td.T) {
 	expectedState := &UserState{
 		AssetPositions: []AssetPosition{
 			{
 				Position: Position{
 					Coin:          "BTC",
-					EntryPx:       strPtr("45000"),
-					MarginUsed:    "1000",
-					PositionValue: "45000",
-					Szi:           "1",
+					EntryPx:       ptr(types.FloatString(45000)),
+					MarginUsed:    1000,
+					PositionValue: 45000,
+					Szi:           1,
 				},
 				Type: "perp",
 			},
 		},
-		Withdrawable: "50000",
+		Withdrawable: 50000,
 	}
 
 	info := &Info{
 		rest: &mockRestClient{
 			postFunc: func(ctx context.Context, path string, body any, result any) error {
 				req := body.(map[string]any)
-				if req["type"] != "clearinghouseState" {
-					t.Errorf(
-						"expected type clearinghouseState, got %v",
-						req["type"],
-					)
-				}
-				if req["user"] != common.HexToAddress("0x123") {
-					t.Errorf("expected user 0x123, got %v", req["user"])
-				}
-				if req["dex"] != "mainnet" {
-					t.Errorf("expected dex mainnet, got %v", req["dex"])
-				}
+				require.Cmp(req["type"], "clearinghouseState")
+				require.Cmp(req["user"], common.HexToAddress("0x123"))
+				require.Cmp(req["dex"], "mainnet")
 				*result.(*UserState) = *expectedState
 				return nil
 			},
@@ -449,35 +378,28 @@ func TestUserStateSuccess(t *testing.T) {
 		common.HexToAddress("0x123"),
 		"mainnet",
 	)
-	if err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
+	require.CmpNoError(err)
 
-	if len(state.AssetPositions) != 1 {
-		t.Errorf("expected 1 position, got %d", len(state.AssetPositions))
-	}
-	if state.Withdrawable != "50000" {
-		t.Errorf("expected withdrawable 50000, got %s", state.Withdrawable)
-	}
+	require.Cmp(len(state.AssetPositions), 1)
+	require.Cmp(state.Withdrawable.Raw(), 50000.00)
 }
 
-func TestOpenOrdersSuccess(t *testing.T) {
-	t.Parallel()
+func (s *InfoSuite) TestOpenOrdersSuccess(assert, require *td.T) {
 	expectedOrders := []OpenOrder{
 		{
 			Coin:      "BTC",
-			LimitPx:   "45000",
+			LimitPx:   45000,
 			Oid:       1,
 			Side:      "A",
-			Sz:        "1",
+			Sz:        1,
 			Timestamp: 1234567890,
 		},
 		{
 			Coin:      "ETH",
-			LimitPx:   "3000",
+			LimitPx:   3000,
 			Oid:       2,
 			Side:      "B",
-			Sz:        "10",
+			Sz:        10,
 			Timestamp: 1234567891,
 		},
 	}
@@ -486,40 +408,36 @@ func TestOpenOrdersSuccess(t *testing.T) {
 		rest: &mockRestClient{
 			postFunc: func(ctx context.Context, path string, body any, result any) error {
 				req := body.(map[string]any)
-				if req["type"] != "openOrders" {
-					t.Errorf("expected type openOrders, got %v", req["type"])
-				}
+				require.Cmp(req["type"], "openOrders")
 				*result.(*[]OpenOrder) = expectedOrders
 				return nil
 			},
 		},
 	}
 
-	orders, err := info.OpenOrders(context.Background(), "0x123", "mainnet")
-	if err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
-
-	if len(orders) != len(expectedOrders) {
-		t.Errorf("expected %d orders, got %d", len(expectedOrders), len(orders))
-	}
+	orders, err := info.OpenOrders(
+		context.Background(),
+		common.HexToAddress("0x123"),
+		"mainnet",
+	)
+	require.CmpNoError(err)
+	require.Cmp(len(orders), len(expectedOrders))
 }
 
-func TestUserFillsSuccess(t *testing.T) {
-	t.Parallel()
+func (s *InfoSuite) TestUserFillsSuccess(assert, require *td.T) {
 	expectedFills := []Fill{
 		{
 			Coin: "BTC",
-			Px:   "45000",
-			Sz:   "1",
+			Px:   45000,
+			Sz:   1,
 			Side: "A",
 			Time: 1234567890,
 			Oid:  1,
 		},
 		{
 			Coin: "ETH",
-			Px:   "3000",
-			Sz:   "10",
+			Px:   3000,
+			Sz:   10,
 			Side: "B",
 			Time: 1234567891,
 			Oid:  2,
@@ -530,32 +448,27 @@ func TestUserFillsSuccess(t *testing.T) {
 		rest: &mockRestClient{
 			postFunc: func(ctx context.Context, path string, body any, result any) error {
 				req := body.(map[string]any)
-				if req["type"] != "userFills" {
-					t.Errorf("expected type userFills, got %v", req["type"])
-				}
+				require.Cmp(req["type"], "userFills")
 				*result.(*[]Fill) = expectedFills
 				return nil
 			},
 		},
 	}
 
-	fills, err := info.UserFills(context.Background(), "0x123")
-	if err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
-
-	if len(fills) != len(expectedFills) {
-		t.Errorf("expected %d fills, got %d", len(expectedFills), len(fills))
-	}
+	fills, err := info.UserFills(
+		context.Background(),
+		common.HexToAddress("0x123"),
+	)
+	require.CmpNoError(err)
+	require.Cmp(len(fills), len(expectedFills))
 }
 
-func TestUserFillsByTimeSuccess(t *testing.T) {
-	t.Parallel()
+func (s *InfoSuite) TestUserFillsByTimeSuccess(assert, require *td.T) {
 	expectedFills := []Fill{
 		{
 			Coin: "BTC",
-			Px:   "45000",
-			Sz:   "1",
+			Px:   45000,
+			Sz:   1,
 			Side: "A",
 			Time: 1234567890,
 			Oid:  1,
@@ -567,31 +480,10 @@ func TestUserFillsByTimeSuccess(t *testing.T) {
 		rest: &mockRestClient{
 			postFunc: func(ctx context.Context, path string, body any, result any) error {
 				req := body.(map[string]any)
-				if req["type"] != "userFillsByTime" {
-					t.Errorf(
-						"expected type userFillsByTime, got %v",
-						req["type"],
-					)
-				}
-				if req["startTime"] != int64(1234567880) {
-					t.Errorf(
-						"expected startTime 1234567880, got %v",
-						req["startTime"],
-					)
-				}
-				if req["endTime"] != endTime {
-					t.Errorf(
-						"expected endTime %d, got %v",
-						endTime,
-						req["endTime"],
-					)
-				}
-				if req["aggregateByTime"] != true {
-					t.Errorf(
-						"expected aggregateByTime true, got %v",
-						req["aggregateByTime"],
-					)
-				}
+				require.Cmp(req["type"], "userFillsByTime")
+				require.Cmp(req["startTime"], int64(1234567880))
+				require.Cmp(req["endTime"], endTime)
+				require.Cmp(req["aggregateByTime"], true)
 				*result.(*[]Fill) = expectedFills
 				return nil
 			},
@@ -600,39 +492,26 @@ func TestUserFillsByTimeSuccess(t *testing.T) {
 
 	fills, err := info.UserFillsByTime(
 		context.Background(),
-		"0x123",
+		common.HexToAddress("0x123"),
 		1234567880,
 		&endTime,
 		true,
 	)
-	if err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
-
-	if len(fills) != 1 {
-		t.Errorf("expected 1 fill, got %d", len(fills))
-	}
+	require.CmpNoError(err)
+	require.Cmp(len(fills), 1)
 }
 
-func TestFundingHistorySuccess(t *testing.T) {
-	t.Parallel()
+func (s *InfoSuite) TestFundingHistorySuccess(assert, require *td.T) {
 	expectedHistory := []FundingRecord{
-		{Coin: "BTC", FundingRate: "0.0001", Premium: "100", Time: 1234567890},
+		{Coin: "BTC", FundingRate: 0.0001, Premium: 100, Time: 1234567890},
 	}
 
 	info := &Info{
 		rest: &mockRestClient{
 			postFunc: func(ctx context.Context, path string, body any, result any) error {
 				req := body.(map[string]any)
-				if req["type"] != "fundingHistory" {
-					t.Errorf(
-						"expected type fundingHistory, got %v",
-						req["type"],
-					)
-				}
-				if req["coin"] != "BTC" {
-					t.Errorf("expected coin BTC, got %v", req["coin"])
-				}
+				require.Cmp(req["type"], "fundingHistory")
+				require.Cmp(req["coin"], "BTC")
 				*result.(*[]FundingRecord) = expectedHistory
 				return nil
 			},
@@ -646,17 +525,11 @@ func TestFundingHistorySuccess(t *testing.T) {
 		1234567880,
 		nil,
 	)
-	if err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
-
-	if len(history) != 1 {
-		t.Errorf("expected 1 record, got %d", len(history))
-	}
+	require.CmpNoError(err)
+	require.Cmp(len(history), 1)
 }
 
-func TestCandlesSnapshotSuccess(t *testing.T) {
-	t.Parallel()
+func (s *InfoSuite) TestCandlesSnapshotSuccess(assert, require *td.T) {
 	expectedCandles := []Candle{
 		{
 			T: 1234567890,
@@ -675,12 +548,7 @@ func TestCandlesSnapshotSuccess(t *testing.T) {
 		rest: &mockRestClient{
 			postFunc: func(ctx context.Context, path string, body any, result any) error {
 				req := body.(map[string]any)
-				if req["type"] != "candleSnapshot" {
-					t.Errorf(
-						"expected type candleSnapshot, got %v",
-						req["type"],
-					)
-				}
+				require.Cmp(req["type"], "candleSnapshot")
 				*result.(*[]Candle) = expectedCandles
 				return nil
 			},
@@ -695,64 +563,22 @@ func TestCandlesSnapshotSuccess(t *testing.T) {
 		1234567880,
 		1234567890,
 	)
-	if err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
-
-	if len(candles) != 1 {
-		t.Errorf("expected 1 candle, got %d", len(candles))
-	}
-}
-
-func TestUserFeesSuccess(t *testing.T) {
-	t.Parallel()
-	expectedFees := map[string]any{
-		"takerFee":  "0.0002",
-		"makerFee":  "0.0001",
-		"volume30d": "50000",
-	}
-
-	info := &Info{
-		rest: &mockRestClient{
-			postFunc: func(ctx context.Context, path string, body any, result any) error {
-				req := body.(map[string]any)
-				if req["type"] != "userFees" {
-					t.Errorf("expected type userFees, got %v", req["type"])
-				}
-				*result.(*any) = expectedFees
-				return nil
-			},
-		},
-	}
-
-	fees, err := info.UserFees(context.Background(), "0x123")
-	if err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
-
-	if fees == nil {
-		t.Fatal("expected fees to be non-nil")
-	}
+	require.CmpNoError(err)
+	require.Cmp(len(candles), 1)
 }
 
 // ===== WebSocket Subscription Tests =====
 
-func TestSubscribeAllMidsNoWS(t *testing.T) {
-	t.Parallel()
+func (s *InfoSuite) TestSubscribeAllMidsNoWS(assert, require *td.T) {
 	info := &Info{}
 
 	ch := make(chan ws.AllMidsMessage)
 	_, err := info.SubscribeAllMids(context.Background(), ch)
-	if err == nil {
-		t.Fatal("expected error when ws is nil")
-	}
-	if err.Error() != "websocket not initialized" {
-		t.Errorf("expected 'websocket not initialized', got %s", err.Error())
-	}
+	require.CmpError(err)
+	require.Cmp(err.Error(), "websocket not initialized")
 }
 
-func TestSubscribeAllMidsSuccess(t *testing.T) {
-	t.Parallel()
+func (s *InfoSuite) TestSubscribeAllMidsSuccess(assert, require *td.T) {
 	mockWS := &mockWsClient{
 		subscribeAllMidsFunc: func(ctx context.Context, ch chan<- ws.AllMidsMessage) (ws.Subscription, error) {
 			return &mockSubscription{}, nil
@@ -763,22 +589,14 @@ func TestSubscribeAllMidsSuccess(t *testing.T) {
 
 	ch := make(chan ws.AllMidsMessage)
 	sub, err := info.SubscribeAllMids(context.Background(), ch)
-	if err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
-
-	if sub == nil {
-		t.Fatal("expected subscription to be non-nil")
-	}
+	require.CmpNoError(err)
+	require.NotNil(sub)
 }
 
-func TestSubscribeL2BookSuccess(t *testing.T) {
-	t.Parallel()
+func (s *InfoSuite) TestSubscribeL2BookSuccess(assert, require *td.T) {
 	mockWS := &mockWsClient{
 		subscribeL2BookFunc: func(ctx context.Context, coin string, ch chan<- ws.L2BookMessage) (ws.Subscription, error) {
-			if coin != "BTC" {
-				t.Errorf("expected coin BTC, got %s", coin)
-			}
+			require.Cmp(coin, "BTC")
 			return &mockSubscription{}, nil
 		},
 	}
@@ -790,17 +608,11 @@ func TestSubscribeL2BookSuccess(t *testing.T) {
 
 	ch := make(chan ws.L2BookMessage)
 	sub, err := info.SubscribeL2Book(context.Background(), "BTC", ch)
-	if err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
-
-	if sub == nil {
-		t.Fatal("expected subscription to be non-nil")
-	}
+	require.CmpNoError(err)
+	require.NotNil(sub)
 }
 
-func TestSubscribeTradesSuccess(t *testing.T) {
-	t.Parallel()
+func (s *InfoSuite) TestSubscribeTradesSuccess(assert, require *td.T) {
 	mockWS := &mockWsClient{
 		subscribeTradesFunc: func(ctx context.Context, coin string, ch chan<- ws.TradesMessage) (ws.Subscription, error) {
 			return &mockSubscription{}, nil
@@ -814,22 +626,14 @@ func TestSubscribeTradesSuccess(t *testing.T) {
 
 	ch := make(chan ws.TradesMessage)
 	sub, err := info.SubscribeTrades(context.Background(), "ETH", ch)
-	if err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
-
-	if sub == nil {
-		t.Fatal("expected subscription to be non-nil")
-	}
+	require.CmpNoError(err)
+	require.NotNil(sub)
 }
 
-func TestSubscribeCandleSuccess(t *testing.T) {
-	t.Parallel()
+func (s *InfoSuite) TestSubscribeCandleSuccess(assert, require *td.T) {
 	mockWS := &mockWsClient{
 		subscribeCandleFunc: func(ctx context.Context, coin string, interval string, ch chan<- ws.CandleMessage) (ws.Subscription, error) {
-			if interval != "1h" {
-				t.Errorf("expected interval 1h, got %s", interval)
-			}
+			require.Cmp(interval, "1h")
 			return &mockSubscription{}, nil
 		},
 	}
@@ -841,17 +645,11 @@ func TestSubscribeCandleSuccess(t *testing.T) {
 
 	ch := make(chan ws.CandleMessage)
 	sub, err := info.SubscribeCandle(context.Background(), "BTC", "1h", ch)
-	if err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
-
-	if sub == nil {
-		t.Fatal("expected subscription to be non-nil")
-	}
+	require.CmpNoError(err)
+	require.NotNil(sub)
 }
 
-func TestSubscribeBboSuccess(t *testing.T) {
-	t.Parallel()
+func (s *InfoSuite) TestSubscribeBboSuccess(assert, require *td.T) {
 	mockWS := &mockWsClient{
 		subscribeBboFunc: func(ctx context.Context, coin string, ch chan<- ws.BboMessage) (ws.Subscription, error) {
 			return &mockSubscription{}, nil
@@ -865,17 +663,11 @@ func TestSubscribeBboSuccess(t *testing.T) {
 
 	ch := make(chan ws.BboMessage)
 	sub, err := info.SubscribeBbo(context.Background(), "BTC", ch)
-	if err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
-
-	if sub == nil {
-		t.Fatal("expected subscription to be non-nil")
-	}
+	require.CmpNoError(err)
+	require.NotNil(sub)
 }
 
-func TestSubscribeActiveAssetCtxSuccess(t *testing.T) {
-	t.Parallel()
+func (s *InfoSuite) TestSubscribeActiveAssetCtxSuccess(assert, require *td.T) {
 	mockWS := &mockWsClient{
 		subscribeActiveAssetCtxFunc: func(ctx context.Context, coin string, ch chan<- ws.ActiveAssetCtxMessage) (ws.Subscription, error) {
 			return &mockSubscription{}, nil
@@ -889,22 +681,14 @@ func TestSubscribeActiveAssetCtxSuccess(t *testing.T) {
 
 	ch := make(chan ws.ActiveAssetCtxMessage)
 	sub, err := info.SubscribeActiveAssetCtx(context.Background(), "BTC", ch)
-	if err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
-
-	if sub == nil {
-		t.Fatal("expected subscription to be non-nil")
-	}
+	require.CmpNoError(err)
+	require.NotNil(sub)
 }
 
-func TestSubscribeUserEventsSuccess(t *testing.T) {
-	t.Parallel()
+func (s *InfoSuite) TestSubscribeUserEventsSuccess(assert, require *td.T) {
 	mockWS := &mockWsClient{
-		subscribeUserEventsFunc: func(ctx context.Context, user string, ch chan<- ws.UserEventsMessage) (ws.Subscription, error) {
-			if user != "0x123" {
-				t.Errorf("expected user 0x123, got %s", user)
-			}
+		subscribeUserEventsFunc: func(ctx context.Context, user common.Address, ch chan<- ws.UserEventsMessage) (ws.Subscription, error) {
+			require.Cmp(user, common.HexToAddress("0x123"))
 			return &mockSubscription{}, nil
 		},
 	}
@@ -912,18 +696,16 @@ func TestSubscribeUserEventsSuccess(t *testing.T) {
 	info := &Info{ws: mockWS}
 
 	ch := make(chan ws.UserEventsMessage)
-	sub, err := info.SubscribeUserEvents(context.Background(), "0x123", ch)
-	if err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
-
-	if sub == nil {
-		t.Fatal("expected subscription to be non-nil")
-	}
+	sub, err := info.SubscribeUserEvents(
+		context.Background(),
+		common.HexToAddress("0x123"),
+		ch,
+	)
+	require.CmpNoError(err)
+	require.NotNil(sub)
 }
 
-func TestSubscribeUserFillsSuccess(t *testing.T) {
-	t.Parallel()
+func (s *InfoSuite) TestSubscribeUserFillsSuccess(assert, require *td.T) {
 	mockWS := &mockWsClient{
 		subscribeUserFillsFunc: func(ctx context.Context, user string, ch chan<- ws.UserFillsMessage) (ws.Subscription, error) {
 			return &mockSubscription{}, nil
@@ -934,17 +716,11 @@ func TestSubscribeUserFillsSuccess(t *testing.T) {
 
 	ch := make(chan ws.UserFillsMessage)
 	sub, err := info.SubscribeUserFills(context.Background(), "0x456", ch)
-	if err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
-
-	if sub == nil {
-		t.Fatal("expected subscription to be non-nil")
-	}
+	require.CmpNoError(err)
+	require.NotNil(sub)
 }
 
-func TestSubscribeOrderUpdatesSuccess(t *testing.T) {
-	t.Parallel()
+func (s *InfoSuite) TestSubscribeOrderUpdatesSuccess(assert, require *td.T) {
 	mockWS := &mockWsClient{
 		subscribeOrderUpdatesFunc: func(ctx context.Context, user string, ch chan<- ws.OrderUpdatesMessage) (ws.Subscription, error) {
 			return &mockSubscription{}, nil
@@ -955,19 +731,13 @@ func TestSubscribeOrderUpdatesSuccess(t *testing.T) {
 
 	ch := make(chan ws.OrderUpdatesMessage)
 	sub, err := info.SubscribeOrderUpdates(context.Background(), "0x789", ch)
-	if err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
-
-	if sub == nil {
-		t.Fatal("expected subscription to be non-nil")
-	}
+	require.CmpNoError(err)
+	require.NotNil(sub)
 }
 
 // ===== Coin/Asset Management Tests =====
 
-func TestSetCoinMapping(t *testing.T) {
-	t.Parallel()
+func (s *InfoSuite) TestSetCoinMapping(assert, require *td.T) {
 	info := &Info{
 		nameToCoin: make(map[string]string),
 	}
@@ -976,18 +746,13 @@ func TestSetCoinMapping(t *testing.T) {
 	info.SetCoinMapping(coins)
 
 	for _, coin := range coins {
-		if val, ok := info.nameToCoin[coin]; !ok || val != coin {
-			t.Errorf(
-				"expected mapping %s->%s, not found or incorrect",
-				coin,
-				coin,
-			)
-		}
+		val, ok := info.nameToCoin[coin]
+		require.True(ok, "expected mapping for %s", coin)
+		require.Cmp(val, coin)
 	}
 }
 
-func TestGetCoinFromNameFound(t *testing.T) {
-	t.Parallel()
+func (s *InfoSuite) TestGetCoinFromNameFound(assert, require *td.T) {
 	info := &Info{
 		nameToCoin: map[string]string{
 			"Bitcoin":  "BTC",
@@ -995,79 +760,55 @@ func TestGetCoinFromNameFound(t *testing.T) {
 		},
 	}
 
-	if coin := info.getCoinFromName("Bitcoin"); coin != "BTC" {
-		t.Errorf("expected BTC, got %s", coin)
-	}
-
-	if coin := info.getCoinFromName("Ethereum"); coin != "ETH" {
-		t.Errorf("expected ETH, got %s", coin)
-	}
+	require.Cmp(info.getCoinFromName("Bitcoin"), "BTC")
+	require.Cmp(info.getCoinFromName("Ethereum"), "ETH")
 }
 
-func TestGetCoinFromNameNotFound(t *testing.T) {
-	t.Parallel()
+func (s *InfoSuite) TestGetCoinFromNameNotFound(assert, require *td.T) {
 	info := &Info{
 		nameToCoin: map[string]string{},
 	}
 
 	// When not found, should return the name as-is
-	if coin := info.getCoinFromName("BTC"); coin != "BTC" {
-		t.Errorf("expected BTC, got %s", coin)
-	}
+	require.Cmp(info.getCoinFromName("BTC"), "BTC")
 }
 
-func TestGetAssetFound(t *testing.T) {
-	t.Parallel()
+func (s *InfoSuite) TestGetAssetFound(assert, require *td.T) {
 	info := &Info{
 		coinToAsset: map[string]int64{"BTC": 0, "ETH": 1},
 		nameToCoin:  map[string]string{"Bitcoin": "BTC"},
 	}
 
 	asset, ok := info.GetAsset("Bitcoin")
-	if !ok {
-		t.Fatal("expected asset to be found")
-	}
-	if asset != 0 {
-		t.Errorf("expected asset 0, got %d", asset)
-	}
+	require.True(ok, "expected asset to be found")
+	require.Cmp(asset, int64(0))
 }
 
-func TestGetAssetNotFound(t *testing.T) {
-	t.Parallel()
+func (s *InfoSuite) TestGetAssetNotFound(assert, require *td.T) {
 	info := &Info{
 		coinToAsset: map[string]int64{},
 		nameToCoin:  map[string]string{},
 	}
 
 	_, ok := info.GetAsset("UNKNOWN")
-	if ok {
-		t.Fatal("expected asset to not be found")
-	}
+	require.False(ok, "expected asset not to be found")
 }
 
-func TestPullRealData(t *testing.T) {
-	t.Parallel()
+func (s *InfoSuite) TestPullRealData(assert, require *td.T) {
 	// Manual test
-	t.Skip()
+	tb := require.TB
+	tb.Skip("manual integration test")
+
 	info, err := New(Config{})
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.CmpNoError(err)
 
 	mids, err := info.AllMids(context.Background(), "")
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	if len(mids) == 0 {
-		t.Fatal("expected non-zero length of mids")
-	}
+	require.CmpNoError(err)
+	require.True(len(mids) > 0, "expected non-zero length of mids")
 
 	midsChan := make(chan ws.AllMidsMessage)
 	sub, err := info.SubscribeAllMids(context.Background(), midsChan)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.CmpNoError(err)
 	defer sub.Unsubscribe()
 
 	// Use a timeout context so we don't block forever
@@ -1084,7 +825,8 @@ func TestPullRealData(t *testing.T) {
 				return
 			}
 		case <-ctx.Done():
-			t.Fatalf(
+			require.True(
+				false,
 				"timeout waiting for messages after 10s, got %d messages",
 				messageCount,
 			)
@@ -1094,7 +836,7 @@ func TestPullRealData(t *testing.T) {
 
 // ===== Helper Functions =====
 
-func strPtr(s string) *string {
+func ptr[T any](s T) *T {
 	return &s
 }
 

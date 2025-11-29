@@ -1,4 +1,4 @@
-package exchange
+package utils
 
 import (
 	"math"
@@ -56,7 +56,7 @@ func TestFloatToWire_Success(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := floatToWire(tt.input)
+			got, err := FloatToWire(tt.input)
 			if err != nil {
 				t.Fatalf("floatToWire(%v) unexpected error: %v", tt.input, err)
 			}
@@ -100,7 +100,7 @@ func TestFloatToWire_Error(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			_, err := floatToWire(tt.input)
+			_, err := FloatToWire(tt.input)
 			if err == nil {
 				t.Fatalf("floatToWire(%v) expected error, got nil", tt.input)
 			}
@@ -145,7 +145,7 @@ func TestStringToFloat(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := stringToFloat(tt.input)
+			got, err := StringToFloat(tt.input)
 			if tt.shouldFail {
 				if err == nil {
 					t.Fatalf(
@@ -217,7 +217,7 @@ func TestRoundToSigfig(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := roundToSigfig(tt.args.x, tt.args.n)
+			got := RoundToSigfig(tt.args.x, tt.args.n)
 			if math.Abs(got-tt.want) > epsilon {
 				t.Fatalf("roundToSigfig(%v, %d) = %v, want %v",
 					tt.args.x, tt.args.n, got, tt.want)
@@ -274,7 +274,7 @@ func TestRoundToDecimals(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := roundToDecimals(tt.args.x, tt.args.decimals)
+			got := RoundToDecimals(tt.args.x, tt.args.decimals)
 			if math.Abs(got-tt.want) > epsilon {
 				t.Fatalf("roundToDecimals(%v, %d) = %v, want %v",
 					tt.args.x, tt.args.decimals, got, tt.want)
@@ -313,7 +313,7 @@ func TestGetDex(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.input, func(t *testing.T) {
-			got := getDex(tt.input)
+			got := GetDex(tt.input)
 			if got != tt.want {
 				t.Fatalf("getDex(%q) = %q, want %q", tt.input, got, tt.want)
 			}
@@ -369,7 +369,7 @@ func TestFloatToInt(t *testing.T) {
 	for _, tt := range tests {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := floatToInt(tt.x, tt.power)
+			got, err := FloatToInt(tt.x, tt.power)
 			if tt.wantErr {
 				if err == nil {
 					t.Fatalf(
@@ -432,7 +432,7 @@ func TestFloatToUsdInt(t *testing.T) {
 	for _, tt := range tests {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := floatToUsdInt(tt.x)
+			got, err := FloatToUsdInt(tt.x)
 			if tt.wantErr {
 				if err == nil {
 					t.Fatalf(

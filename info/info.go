@@ -6,6 +6,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/banky/go-hyperliquid/internal/utils"
 	"github.com/banky/go-hyperliquid/rest"
 	"github.com/banky/go-hyperliquid/ws"
 	"github.com/ethereum/go-ethereum/common"
@@ -75,7 +76,7 @@ func (i *Info) initializeMetadata(ctx context.Context, cfg Config) error {
 		if err != nil {
 			return fmt.Errorf("failed to fetch spot metadata: %w", err)
 		}
-		spotMeta = fetched
+		spotMeta = &fetched
 	}
 
 	// Initialize spot coin/asset mappings
@@ -103,9 +104,9 @@ func (i *Info) initializeMetadata(ctx context.Context, cfg Config) error {
 						err,
 					)
 				}
-				meta = fetched
+				meta = &fetched
 			}
-			i.setPerpMeta(meta, 0)
+			i.setPerpMeta(*meta, 0)
 		} else {
 			// Fetch meta for other DEXs (offset calculation would be handled
 			// separately)
@@ -163,11 +164,7 @@ func (i *Info) initializeSpotMetadata(spotMeta *SpotMeta) {
 }
 
 // setPerpMeta processes perpetual metadata for a specific DEX and asset offset
-func (i *Info) setPerpMeta(meta *Meta, offset int64) {
-	if meta == nil {
-		return
-	}
-
+func (i *Info) setPerpMeta(meta Meta, offset int64) {
 	i.mu.Lock()
 	defer i.mu.Unlock()
 
@@ -193,7 +190,7 @@ func (i *Info) Close() {
 func (i *Info) AllMids(
 	ctx context.Context,
 	dex string,
-) (map[string]string, error) {
+) (map[string]float64, error) {
 	var result map[string]string
 	err := i.rest.Post(
 		ctx,
@@ -205,17 +202,27 @@ func (i *Info) AllMids(
 		&result,
 	)
 
-	return result, err
+	mappedResult := make(map[string]float64)
+	for coin, mid := range result {
+		s, err := utils.StringToFloat(mid)
+		if err != nil {
+			return nil, err
+		}
+
+		mappedResult[coin] = s
+	}
+
+	return mappedResult, err
 }
 
 // L2Snapshot retrieves up to 20 levels of the order book for a coin.
 func (i *Info) L2Snapshot(
 	ctx context.Context,
 	name string,
-) (*L2BookSnapshot, error) {
+) (L2BookSnapshot, error) {
 	coin := i.getCoinFromName(name)
 	if coin == "" {
-		return nil, fmt.Errorf("unknown coin name: %s", name)
+		return L2BookSnapshot{}, fmt.Errorf("unknown coin name: %s", name)
 	}
 
 	var result L2BookSnapshot
@@ -228,12 +235,15 @@ func (i *Info) L2Snapshot(
 		},
 		&result,
 	)
+	if err != nil {
+		return L2BookSnapshot{}, err
+	}
 
-	return &result, err
+	return result, nil
 }
 
 // Meta retrieves exchange metadata for perpetuals.
-func (i *Info) Meta(ctx context.Context, dex string) (*Meta, error) {
+func (i *Info) Meta(ctx context.Context, dex string) (Meta, error) {
 	var result Meta
 	err := i.rest.Post(
 		ctx,
@@ -245,11 +255,11 @@ func (i *Info) Meta(ctx context.Context, dex string) (*Meta, error) {
 		&result,
 	)
 
-	return &result, err
+	return result, err
 }
 
 // SpotMeta retrieves exchange metadata for spot trading.
-func (i *Info) SpotMeta(ctx context.Context) (*SpotMeta, error) {
+func (i *Info) SpotMeta(ctx context.Context) (SpotMeta, error) {
 	var result SpotMeta
 	err := i.rest.Post(
 		ctx,
@@ -260,7 +270,7 @@ func (i *Info) SpotMeta(ctx context.Context) (*SpotMeta, error) {
 		&result,
 	)
 
-	return &result, err
+	return result, err
 }
 
 // AssetToSzDecimals retrieves the number of decimal places for a given asset.
@@ -291,7 +301,7 @@ func (i *Info) NameToAsset(name string) (int64, bool) {
 // UserState retrieves account portfolio and position data.
 func (i *Info) UserState(
 	ctx context.Context,
-	address common.Address,
+	user common.Address,
 	dex string,
 ) (UserState, error) {
 	var result UserState
@@ -300,7 +310,7 @@ func (i *Info) UserState(
 		"/info",
 		map[string]any{
 			"type": "clearinghouseState",
-			"user": address,
+			"user": user,
 			"dex":  dex,
 		},
 		&result,
@@ -310,14 +320,17 @@ func (i *Info) UserState(
 }
 
 // SpotUserState retrieves account portfolio and position data for spot trading.
-func (i *Info) SpotUserState(ctx context.Context, address string) (any, error) {
-	var result any
+func (i *Info) SpotUserState(
+	ctx context.Context,
+	user common.Address,
+) (SpotUserState, error) {
+	var result SpotUserState
 	err := i.rest.Post(
 		ctx,
 		"/info",
 		map[string]any{
 			"type": "spotClearinghouseState",
-			"user": address,
+			"user": user,
 		},
 		&result,
 	)
@@ -328,7 +341,7 @@ func (i *Info) SpotUserState(ctx context.Context, address string) (any, error) {
 // OpenOrders retrieves a user's active orders.
 func (i *Info) OpenOrders(
 	ctx context.Context,
-	address string,
+	user common.Address,
 	dex string,
 ) ([]OpenOrder, error) {
 	var result []OpenOrder
@@ -337,7 +350,7 @@ func (i *Info) OpenOrders(
 		"/info",
 		map[string]any{
 			"type": "openOrders",
-			"user": address,
+			"user": user,
 			"dex":  dex,
 		},
 		&result,
@@ -347,14 +360,17 @@ func (i *Info) OpenOrders(
 }
 
 // UserFills retrieves a user's fills/executed trades.
-func (i *Info) UserFills(ctx context.Context, address string) ([]Fill, error) {
+func (i *Info) UserFills(
+	ctx context.Context,
+	user common.Address,
+) ([]Fill, error) {
 	var result []Fill
 	err := i.rest.Post(
 		ctx,
 		"/info",
 		map[string]any{
 			"type": "userFills",
-			"user": address,
+			"user": user,
 		},
 		&result,
 	)
@@ -365,14 +381,14 @@ func (i *Info) UserFills(ctx context.Context, address string) ([]Fill, error) {
 // UserFillsByTime retrieves a user's fills within a time range.
 func (i *Info) UserFillsByTime(
 	ctx context.Context,
-	address string,
+	user common.Address,
 	startTime int64,
 	endTime *int64,
 	aggregateByTime bool,
 ) ([]Fill, error) {
 	req := map[string]any{
 		"type":            "userFillsByTime",
-		"user":            address,
+		"user":            user,
 		"startTime":       startTime,
 		"aggregateByTime": aggregateByTime,
 	}
@@ -426,20 +442,20 @@ func (i *Info) FundingHistory(
 // UserFundingHistory retrieves a user's funding history.
 func (i *Info) UserFundingHistory(
 	ctx context.Context,
-	user string,
-	startTime int64,
-	endTime *int64,
-) (any, error) {
+	user common.Address,
+	startTime time.Time,
+	endTime *time.Time,
+) ([]Funding, error) {
 	req := map[string]any{
 		"type":      "userFunding",
 		"user":      user,
-		"startTime": startTime,
+		"startTime": startTime.UnixMilli(),
 	}
 	if endTime != nil {
-		req["endTime"] = *endTime
+		req["endTime"] = (*endTime).UnixMilli()
 	}
 
-	var result any
+	var result []Funding
 	err := i.rest.Post(
 		ctx,
 		"/info",
@@ -485,14 +501,17 @@ func (i *Info) CandlesSnapshot(
 }
 
 // UserFees retrieves a user's fee information and trading volume.
-func (i *Info) UserFees(ctx context.Context, address string) (any, error) {
-	var result any
+func (i *Info) UserFees(
+	ctx context.Context,
+	user common.Address,
+) (UserFeeInfo, error) {
+	var result UserFeeInfo
 	err := i.rest.Post(
 		ctx,
 		"/info",
 		map[string]any{
 			"type": "userFees",
-			"user": address,
+			"user": user,
 		},
 		&result,
 	)
@@ -597,7 +616,7 @@ func (i *Info) SubscribeActiveAssetCtx(
 // SubscribeUserEvents subscribes to user events
 func (i *Info) SubscribeUserEvents(
 	ctx context.Context,
-	user string,
+	user common.Address,
 	ch chan<- ws.UserEventsMessage,
 ) (ws.Subscription, error) {
 	if i.ws == nil {
@@ -632,7 +651,7 @@ func (i *Info) SubscribeOrderUpdates(
 
 // ===== Coin/Asset Management =====
 
-// getCoinFromName retrieves the actual coin name from a user-friendly name
+// getCoinFromName retrieves the actual coin name from a user-friendly name.
 // Returns the coin as-is if it matches an entry in the mapping
 func (i *Info) getCoinFromName(name string) string {
 	i.mu.RLock()

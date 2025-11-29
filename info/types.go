@@ -1,20 +1,15 @@
 package info
 
 import (
-	"encoding/json"
-	"strconv"
-
 	"github.com/banky/go-hyperliquid/types"
 	"github.com/ethereum/go-ethereum/common"
 )
 
-// ===== Market Data Types =====
-
 // L2Level represents a single level in the order book
 type L2Level struct {
-	Px string `json:"px"`
-	Sz string `json:"sz"`
-	N  int64  `json:"n"`
+	Px types.FloatString `json:"px"`
+	Sz types.FloatString `json:"sz"`
+	N  types.FloatString `json:"n"`
 }
 
 // L2BookSnapshot contains level 2 order book data
@@ -66,19 +61,17 @@ type SpotMeta struct {
 	Tokens   []SpotTokenInfo `json:"tokens"`
 }
 
-// ===== User Account Types =====
-
 // Position represents a user's position in a coin
 type Position struct {
-	Coin           string   `json:"coin"`
-	EntryPx        *string  `json:"entryPx"`
-	Leverage       Leverage `json:"leverage"`
-	LiquidationPx  *string  `json:"liquidationPx"`
-	MarginUsed     string   `json:"marginUsed"`
-	PositionValue  string   `json:"positionValue"`
-	ReturnOnEquity string   `json:"returnOnEquity"`
-	Szi            string   `json:"szi"`
-	UnrealizedPnl  string   `json:"unrealizedPnl"`
+	Coin           string             `json:"coin"`
+	EntryPx        *types.FloatString `json:"entryPx"`
+	Leverage       Leverage           `json:"leverage"`
+	LiquidationPx  *types.FloatString `json:"liquidationPx"`
+	MarginUsed     types.FloatString  `json:"marginUsed"`
+	PositionValue  types.FloatString  `json:"positionValue"`
+	ReturnOnEquity types.FloatString  `json:"returnOnEquity"`
+	Szi            types.FloatString  `json:"szi"`
+	UnrealizedPnl  types.FloatString  `json:"unrealizedPnl"`
 }
 
 // AssetPosition represents a user's position in an asset
@@ -89,61 +82,75 @@ type AssetPosition struct {
 
 // Leverage represents leverage configuration
 type Leverage struct {
-	Type   string  `json:"type"` // "cross" or "isolated"
-	Value  int64   `json:"value"`
-	RawUsd *string `json:"rawUsd,omitempty"` // Only for isolated
+	Type   string             `json:"type"` // "cross" or "isolated"
+	Value  int64              `json:"value"`
+	RawUsd *types.FloatString `json:"rawUsd,omitempty"` // Only for isolated
 }
 
 // MarginSummary contains margin information
 type MarginSummary struct {
-	AccountValue    string `json:"accountValue"`
-	TotalMarginUsed string `json:"totalMarginUsed"`
-	TotalNtlPos     string `json:"totalNtlPos"`
-	TotalRawUsd     string `json:"totalRawUsd"`
+	AccountValue    types.FloatString `json:"accountValue"`
+	TotalMarginUsed types.FloatString `json:"totalMarginUsed"`
+	TotalNtlPos     types.FloatString `json:"totalNtlPos"`
+	TotalRawUsd     types.FloatString `json:"totalRawUsd"`
 }
 
 // UserState contains detailed trading information about a user
 type UserState struct {
-	AssetPositions     []AssetPosition `json:"assetPositions"`
-	CrossMarginSummary MarginSummary   `json:"crossMarginSummary"`
-	MarginSummary      MarginSummary   `json:"marginSummary"`
-	Withdrawable       string          `json:"withdrawable"`
+	AssetPositions     []AssetPosition   `json:"assetPositions"`
+	CrossMarginSummary MarginSummary     `json:"crossMarginSummary"`
+	MarginSummary      MarginSummary     `json:"marginSummary"`
+	Withdrawable       types.FloatString `json:"withdrawable"`
+}
+
+type Balance struct {
+	Coin     string            `json:"coin"`
+	Token    int64             `json:"token"`
+	Total    types.FloatString `json:"total"`
+	Hold     types.FloatString `json:"hold"`
+	EntryNtl types.FloatString `json:"entryNtl"`
+}
+
+// SpotUserState contains the user’s token balances
+// for spot trading on the Hyperliquid exchange
+type SpotUserState struct {
+	Balances []Balance `json:"balances"`
 }
 
 // OpenOrder represents an open order
 type OpenOrder struct {
-	Coin      string `json:"coin"`
-	LimitPx   string `json:"limitPx"`
-	Oid       int64  `json:"oid"`
-	Side      string `json:"side"`
-	Sz        string `json:"sz"`
-	Timestamp int64  `json:"timestamp"`
+	Coin      string            `json:"coin"`
+	LimitPx   types.FloatString `json:"limitPx"`
+	Oid       int64             `json:"oid"`
+	Side      string            `json:"side"`
+	Sz        types.FloatString `json:"sz"`
+	Timestamp int64             `json:"timestamp"`
 }
 
 // Fill represents a fill/executed trade
 type Fill struct {
-	Coin          string `json:"coin"`
-	Px            string `json:"px"`
-	Sz            string `json:"sz"`
-	Side          string `json:"side"`
-	Time          int64  `json:"time"`
-	StartPosition string `json:"startPosition"`
-	Dir           string `json:"dir"`
-	ClosedPnl     string `json:"closedPnl"`
-	Hash          string `json:"hash"`
-	Oid           int64  `json:"oid"`
-	Crossed       bool   `json:"crossed"`
-	Fee           string `json:"fee"`
-	Tid           int64  `json:"tid"`
-	FeeToken      string `json:"feeToken"`
+	Coin          string            `json:"coin"`
+	Px            types.FloatString `json:"px"`
+	Sz            types.FloatString `json:"sz"`
+	Side          string            `json:"side"`
+	Time          int64             `json:"time"`
+	StartPosition types.FloatString `json:"startPosition"`
+	Dir           string            `json:"dir"`
+	ClosedPnl     types.FloatString `json:"closedPnl"`
+	Hash          common.Hash       `json:"hash"`
+	Oid           int64             `json:"oid"`
+	Crossed       bool              `json:"crossed"`
+	Fee           types.FloatString `json:"fee"`
+	Tid           int64             `json:"tid"`
+	FeeToken      string            `json:"feeToken"`
 }
 
 // FundingRecord represents a funding payment record
 type FundingRecord struct {
-	Coin        string `json:"coin"`
-	FundingRate string `json:"fundingRate"`
-	Premium     string `json:"premium"`
-	Time        int64  `json:"time"`
+	Coin        string            `json:"coin"`
+	FundingRate types.FloatString `json:"fundingRate"`
+	Premium     types.FloatString `json:"premium"`
+	Time        int64             `json:"time"`
 }
 
 // Candle represents candlestick data
@@ -273,60 +280,28 @@ const (
 	OrderStatusPerpMaxPositionRejected OrderStatus = "perpMaxPositionRejected"
 )
 
-// FloatString represents a floating-point number that can be encoded as a JSON
-// string or number
-type FloatString float64
-
-// UnmarshalJSON implements json.Unmarshaler for FloatString
-func (f *FloatString) UnmarshalJSON(b []byte) error {
-	// Handle "null"
-	if string(b) == "null" {
-		*f = 0
-		return nil
-	}
-
-	// Remove quotes if needed and parse as string
-	var s string
-	if err := json.Unmarshal(b, &s); err == nil {
-		v, err := strconv.ParseFloat(s, 64)
-		if err != nil {
-			return err
-		}
-		*f = FloatString(v)
-		return nil
-	}
-
-	// Otherwise fall back to normal float unmarshal
-	var v float64
-	if err := json.Unmarshal(b, &v); err != nil {
-		return err
-	}
-	*f = FloatString(v)
-	return nil
-}
-
 // OrderChild represents a child order (e.g., TP/SL orders)
 type OrderChild struct {
 }
 
 // OrderData represents the detailed order information
 type OrderData struct {
-	Coin             string       `json:"coin"`
-	Side             string       `json:"side"`
-	LimitPx          FloatString  `json:"limitPx"`
-	Sz               FloatString  `json:"sz"`
-	Oid              int64        `json:"oid"`
-	Timestamp        int64        `json:"timestamp"`
-	TriggerCondition string       `json:"triggerCondition"`
-	IsTrigger        bool         `json:"isTrigger"`
-	TriggerPx        FloatString  `json:"triggerPx"`
-	Children         []OrderChild `json:"children"`
-	IsPositionTpsl   bool         `json:"isPositionTpsl"`
-	ReduceOnly       bool         `json:"reduceOnly"`
-	OrderType        string       `json:"orderType"`
-	OrigSz           FloatString  `json:"origSz"`
-	Tif              string       `json:"tif"`
-	Cloid            *types.Cloid `json:"cloid"`
+	Coin             string            `json:"coin"`
+	Side             string            `json:"side"`
+	LimitPx          types.FloatString `json:"limitPx"`
+	Sz               types.FloatString `json:"sz"`
+	Oid              int64             `json:"oid"`
+	Timestamp        int64             `json:"timestamp"`
+	TriggerCondition string            `json:"triggerCondition"`
+	IsTrigger        bool              `json:"isTrigger"`
+	TriggerPx        types.FloatString `json:"triggerPx"`
+	Children         []OrderChild      `json:"children"`
+	IsPositionTpsl   bool              `json:"isPositionTpsl"`
+	ReduceOnly       bool              `json:"reduceOnly"`
+	OrderType        string            `json:"orderType"`
+	OrigSz           types.FloatString `json:"origSz"`
+	Tif              string            `json:"tif"`
+	Cloid            *types.Cloid      `json:"cloid"`
 }
 
 // OrderResponse represents an order with its metadata
@@ -341,4 +316,83 @@ type OrderResponse struct {
 type QueryOrderResponse struct {
 	Status string        `json:"status"` // "order" indicates this is an order query response
 	Order  OrderResponse `json:"order"`
+}
+
+// FundingDelta represents the funding delta information
+type FundingDelta struct {
+	Coin        string            `json:"coin"`
+	FundingRate types.FloatString `json:"fundingRate"`
+	NSamples    int64             `json:"nSamples"`
+	Szi         types.FloatString `json:"szi"`
+	Type        string            `json:"type"`
+	Usdc        types.FloatString `json:"usdc"`
+}
+
+// Funding represents a funding update event
+type Funding struct {
+	Delta FundingDelta  `json:"delta"`
+	Hash  common.Hash   `json:"hash"`
+	Time  int64         `json:"time"`
+}
+
+// DailyVolume represents daily user volume data
+type DailyVolume struct {
+	Date     string            `json:"date"`
+	UserCross types.FloatString `json:"userCross"`
+	UserAdd  types.FloatString `json:"userAdd"`
+	Exchange types.FloatString `json:"exchange"`
+}
+
+// FeeTier represents a fee tier with notional cutoff
+type FeeTier struct {
+	NtlCutoff types.FloatString `json:"ntlCutoff"`
+	Cross     types.FloatString `json:"cross"`
+	Add       types.FloatString `json:"add"`
+	SpotCross types.FloatString `json:"spotCross"`
+	SpotAdd   types.FloatString `json:"spotAdd"`
+}
+
+// MakerFeeRebate represents a maker fee rebate tier
+type MakerFeeRebate struct {
+	MakerFractionCutoff types.FloatString `json:"makerFractionCutoff"`
+	Add                 types.FloatString `json:"add"`
+}
+
+// FeeTiers contains VIP and market maker fee tiers
+type FeeTiers struct {
+	Vip []FeeTier        `json:"vip"`
+	Mm  []MakerFeeRebate `json:"mm"`
+}
+
+// StakingDiscountTier represents a staking discount tier
+type StakingDiscountTier struct {
+	BpsOfMaxSupply types.FloatString `json:"bpsOfMaxSupply"`
+	Discount       types.FloatString `json:"discount"`
+}
+
+// FeeSchedule contains fee information and tier structures
+type FeeSchedule struct {
+	Cross                types.FloatString     `json:"cross"`
+	Add                  types.FloatString     `json:"add"`
+	SpotCross            types.FloatString     `json:"spotCross"`
+	SpotAdd              types.FloatString     `json:"spotAdd"`
+	Tiers                FeeTiers              `json:"tiers"`
+	ReferralDiscount     types.FloatString     `json:"referralDiscount"`
+	StakingDiscountTiers []StakingDiscountTier `json:"stakingDiscountTiers"`
+}
+
+// UserFeeInfo contains comprehensive user fee information
+type UserFeeInfo struct {
+	DailyUserVlm              []DailyVolume         `json:"dailyUserVlm"`
+	FeeSchedule               FeeSchedule           `json:"feeSchedule"`
+	UserCrossRate             types.FloatString     `json:"userCrossRate"`
+	UserAddRate               types.FloatString     `json:"userAddRate"`
+	UserSpotCrossRate         types.FloatString     `json:"userSpotCrossRate"`
+	UserSpotAddRate           types.FloatString     `json:"userSpotAddRate"`
+	ActiveReferralDiscount    types.FloatString     `json:"activeReferralDiscount"`
+	Trial                     *string               `json:"trial"`
+	FeeTrialEscrow            types.FloatString     `json:"feeTrialEscrow"`
+	NextTrialAvailableTimestamp *int64              `json:"nextTrialAvailableTimestamp"`
+	StakingLink               *string               `json:"stakingLink"`
+	ActiveStakingDiscount     StakingDiscountTier   `json:"activeStakingDiscount"`
 }

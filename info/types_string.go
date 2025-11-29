@@ -11,7 +11,7 @@ func (l L2Level) String() string {
 		"L2Level{\n"+
 			"  Px: %s\n"+
 			"  Sz: %s\n"+
-			"  N:  %d\n"+
+			"  N:  %s\n"+
 			"}",
 		l.Px, l.Sz, l.N,
 	)
@@ -119,12 +119,12 @@ func (s SpotMeta) String() string {
 func (p Position) String() string {
 	entryPx := ""
 	if p.EntryPx != nil {
-		entryPx = *p.EntryPx
+		entryPx = p.EntryPx.String()
 	}
 
 	liquidationPx := ""
 	if p.LiquidationPx != nil {
-		liquidationPx = *p.LiquidationPx
+		liquidationPx = p.LiquidationPx.String()
 	}
 
 	return fmt.Sprintf(
@@ -159,7 +159,7 @@ func (a AssetPosition) String() string {
 func (l Leverage) String() string {
 	rawUsd := ""
 	if l.RawUsd != nil {
-		rawUsd = *l.RawUsd
+		rawUsd = l.RawUsd.String()
 	}
 
 	return fmt.Sprintf(
@@ -269,11 +269,6 @@ func (c Candle) String() string {
 			"}",
 		c.T, c.O, c.C, c.H, c.L, c.V, c.N, c.S, c.I,
 	)
-}
-
-// String implements fmt.Stringer for FloatString
-func (f FloatString) String() string {
-	return fmt.Sprintf("%g", float64(f))
 }
 
 // String implements fmt.Stringer for OrderChild

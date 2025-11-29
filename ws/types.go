@@ -3,6 +3,8 @@ package ws
 import (
 	"fmt"
 	"strings"
+
+	"github.com/ethereum/go-ethereum/common"
 )
 
 // ===== Subscription Types =====
@@ -52,7 +54,7 @@ func (s TradesSubscription) subscriptionPayload() any {
 
 // UserEventsSubscription subscribes to user events
 type UserEventsSubscription struct {
-	User string
+	User common.Address
 }
 
 func (s UserEventsSubscription) channelName() string { return "user" }

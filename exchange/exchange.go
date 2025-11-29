@@ -10,6 +10,7 @@ import (
 
 	"github.com/banky/go-hyperliquid/constants"
 	"github.com/banky/go-hyperliquid/info"
+	"github.com/banky/go-hyperliquid/internal/utils"
 	"github.com/banky/go-hyperliquid/rest"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/samber/mo"
@@ -1675,21 +1676,16 @@ func (e *Exchange) getSlippagePrice(
 	if override, ok := pxOverride.Get(); ok {
 		px = override
 	} else {
-		dex := getDex(coin)
+		dex := utils.GetDex(coin)
 
 		mids, err := e.info.AllMids(ctx, dex)
 		if err != nil {
 			return 0, fmt.Errorf("failed to fetch mid prices: %w", err)
 		}
 
-		midPriceStr, ok := mids[coin]
+		midPrice, ok := mids[coin]
 		if !ok {
 			return 0, fmt.Errorf("mid price not found for coin: %s", coin)
-		}
-
-		midPrice, err := stringToFloat(midPriceStr)
-		if err != nil {
-			return 0, fmt.Errorf("invalid mid price for coin %s: %w", coin, err)
 		}
 
 		px = midPrice
@@ -1712,7 +1708,7 @@ func (e *Exchange) getSlippagePrice(
 	}
 
 	// 4. Round to 5 significant figures (Python: f"{px:.5g}")
-	px = roundToSigfig(px, 5)
+	px = utils.RoundToSigfig(px, 5)
 
 	// 5. Final decimal rounding:
 	// Python: round(px_5sig, (6 if not is_spot else 8) -
@@ -1728,7 +1724,7 @@ func (e *Exchange) getSlippagePrice(
 	}
 
 	decimals := baseDecimals - szDecimals
-	px = roundToDecimals(px, decimals)
+	px = utils.RoundToDecimals(px, decimals)
 
 	return px, nil
 }

@@ -10,12 +10,24 @@ import (
 	"time"
 
 	"github.com/coder/websocket"
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/maxatome/go-testdeep/helpers/tdsuite"
+	"github.com/maxatome/go-testdeep/td"
 )
+
+// ===== Suite wiring =====
+
+type WSSuite struct{}
+
+func TestWSSuite(t *testing.T) {
+	tdsuite.Run(t, &WSSuite{})
+}
 
 // ===== Subscription Identifier Tests =====
 
-func TestSubscriptionIdentifiers(t *testing.T) {
-	t.Parallel()
+func (s *WSSuite) TestSubscriptionIdentifiers(assert, require *td.T) {
+	require.Parallel()
+
 	tests := []struct {
 		name       string
 		sub        SubscriptionType
@@ -37,8 +49,10 @@ func TestSubscriptionIdentifiers(t *testing.T) {
 			expectedID: "trades:eth",
 		},
 		{
-			name:       "UserEvents",
-			sub:        UserEventsSubscription{User: "0xABC"},
+			name: "UserEvents",
+			sub: UserEventsSubscription{
+				User: common.HexToAddress("0xABC"),
+			},
 			expectedID: "userEvents",
 		},
 		{
@@ -69,12 +83,8 @@ func TestSubscriptionIdentifiers(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got := tt.sub.identifier()
-			if got != tt.expectedID {
-				t.Errorf("identifier() = %q, want %q", got, tt.expectedID)
-			}
-		})
+		got := tt.sub.identifier()
+		require.Cmp(got, tt.expectedID, tt.name)
 	}
 }
 
@@ -86,7 +96,7 @@ type mockWSServer struct {
 	url    string
 }
 
-func newMockWSServer(t *testing.T) *mockWSServer {
+func newMockWSServer(t testing.TB) *mockWSServer {
 	server := httptest.NewServer(
 		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			conn, err := websocket.Accept(w, r, nil)
@@ -97,7 +107,7 @@ func newMockWSServer(t *testing.T) *mockWSServer {
 			defer conn.Close(websocket.StatusNormalClosure, "test complete")
 
 			// Send connection established message
-			conn.Write(
+			_ = conn.Write(
 				context.Background(),
 				websocket.MessageText,
 				[]byte("Websocket connection established."),
@@ -126,7 +136,7 @@ func newMockWSServer(t *testing.T) *mockWSServer {
 				case "ping":
 					pongMsg := map[string]string{"channel": "pong"}
 					pongData, _ := json.Marshal(pongMsg)
-					conn.Write(
+					_ = conn.Write(
 						context.Background(),
 						websocket.MessageText,
 						pongData,
@@ -154,8 +164,10 @@ func (s *mockWSServer) close() {
 
 // ===== Client Lifecycle Tests =====
 
-func TestClientStartStop(t *testing.T) {
-	t.Parallel()
+func (s *WSSuite) TestClientStartStop(assert, require *td.T) {
+	t := require.TB
+	require.Parallel()
+
 	server := newMockWSServer(t)
 	defer server.close()
 
@@ -164,9 +176,7 @@ func TestClientStartStop(t *testing.T) {
 	defer cancel()
 
 	err := client.Start(ctx)
-	if err != nil {
-		t.Fatalf("Start() failed: %v", err)
-	}
+	require.CmpNoError(err)
 
 	// Give it time to process the connection message
 	time.Sleep(100 * time.Millisecond)
@@ -176,8 +186,10 @@ func TestClientStartStop(t *testing.T) {
 
 // ===== Channel-Based Subscription Tests =====
 
-func TestChannelSubscription(t *testing.T) {
-	t.Parallel()
+func (s *WSSuite) TestChannelSubscription(assert, require *td.T) {
+	t := require.TB
+	require.Parallel()
+
 	server := newMockWSServer(t)
 	defer server.close()
 
@@ -186,30 +198,23 @@ func TestChannelSubscription(t *testing.T) {
 	defer cancel()
 
 	err := client.Start(ctx)
-	if err != nil {
-		t.Fatalf("Start() failed: %v", err)
-	}
+	require.CmpNoError(err)
 
 	time.Sleep(100 * time.Millisecond)
 
 	// Subscribe to AllMids with a channel
 	msgChan := make(chan AllMidsMessage)
 	sub, err := client.SubscribeAllMids(ctx, msgChan)
-	if err != nil {
-		t.Fatalf("SubscribeAllMids() failed: %v", err)
-	}
-	if sub == nil {
-		t.Fatal("expected non-nil subscription")
-	}
+	require.CmpNoError(err)
+	require.NotNil(sub, "expected non-nil subscription")
 
 	time.Sleep(100 * time.Millisecond)
 
 	// Check that subscription is active
 	client.mu.RLock()
-	if len(client.activeSubscriptions["allMids"]) != 1 {
-		t.Error("expected 1 active allMids subscription")
-	}
+	active := len(client.activeSubscriptions["allMids"])
 	client.mu.RUnlock()
+	require.Cmp(active, 1, "expected 1 active allMids subscription")
 
 	// Unsubscribe
 	sub.Unsubscribe()
@@ -218,21 +223,22 @@ func TestChannelSubscription(t *testing.T) {
 
 	// Check that subscription is gone
 	client.mu.RLock()
-	if len(client.activeSubscriptions["allMids"]) != 0 {
-		t.Error("expected 0 active allMids subscriptions after unsubscribe")
-	}
+	active = len(client.activeSubscriptions["allMids"])
 	client.mu.RUnlock()
+	require.Cmp(
+		active,
+		0,
+		"expected 0 active allMids subscriptions after unsubscribe",
+	)
 
 	client.Close()
 }
 
 // ===== Message Routing Tests =====
 
-func TestL2BookMessageRouting(t *testing.T) {
-	t.Parallel()
-	// Focus on testing message routing logic with predictable setup
-	// client := New("http://localhost:8000") // URL doesn't matter, won't
-	// connect
+func (s *WSSuite) TestL2BookMessageRouting(assert, require *td.T) {
+	t := require.TB
+	require.Parallel()
 
 	server := newMockWSServer(t)
 	defer server.close()
@@ -241,14 +247,13 @@ func TestL2BookMessageRouting(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	client.Start(ctx)
+	err := client.Start(ctx)
+	require.CmpNoError(err)
 
 	// Create subscriber channel
 	msgChan := make(chan L2BookMessage)
 	sub, err := client.SubscribeL2Book(ctx, "BTC", msgChan)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.CmpNoError(err)
 	defer sub.Unsubscribe()
 
 	time.Sleep(10 * time.Millisecond)
@@ -283,19 +288,17 @@ func TestL2BookMessageRouting(t *testing.T) {
 	// Receive message from channel
 	select {
 	case received := <-msgChan:
-		if received.Coin != "BTC" {
-			t.Errorf("expected coin BTC, got %s", received.Coin)
-		}
-		if received.Time != 1234567890 {
-			t.Errorf("expected time 1234567890, got %d", received.Time)
-		}
+		require.Cmp(received.Coin, "BTC")
+		require.Cmp(received.Time, int64(1234567890))
 	case <-time.After(1 * time.Second):
-		t.Fatal("timeout waiting for message")
+		require.True(false, "timeout waiting for message")
 	}
 }
 
-func TestTradesMessageRouting(t *testing.T) {
-	t.Parallel()
+func (s *WSSuite) TestTradesMessageRouting(assert, require *td.T) {
+	t := require.TB
+	require.Parallel()
+
 	server := newMockWSServer(t)
 	defer server.close()
 
@@ -303,14 +306,13 @@ func TestTradesMessageRouting(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	client.Start(ctx)
+	err := client.Start(ctx)
+	require.CmpNoError(err)
 
 	// Create subscriber channel
 	msgChan := make(chan TradesMessage)
 	sub, err := client.SubscribeTrades(ctx, "ETH", msgChan)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.CmpNoError(err)
 	defer sub.Unsubscribe()
 
 	time.Sleep(10 * time.Millisecond)
@@ -341,31 +343,28 @@ func TestTradesMessageRouting(t *testing.T) {
 
 	select {
 	case received := <-msgChan:
-		if len(received.Trades) != 2 {
-			t.Errorf("expected 2 trades, got %d", len(received.Trades))
-		}
-		if received.Trades[0].Coin != "ETH" {
-			t.Errorf("expected coin ETH, got %s", received.Trades[0].Coin)
-		}
+		require.Cmp(len(received.Trades), 2)
+		require.Cmp(received.Trades[0].Coin, "ETH")
 	case <-time.After(1 * time.Second):
-		t.Fatal("timeout waiting for message")
+		require.True(false, "timeout waiting for message")
 	}
 }
 
 // ===== Multiplexing Constraint Tests =====
 
-func TestUserEventsDuplicateSubscription(t *testing.T) {
-	t.Parallel()
+func (s *WSSuite) TestUserEventsDuplicateSubscription(assert, require *td.T) {
+	t := require.TB
+	require.Parallel()
+
 	server := newMockWSServer(t)
 	defer server.close()
 
 	client := New(server.url)
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
+
 	err := client.Start(ctx)
-	if err != nil {
-		t.Fatalf("Start() failed: %v", err)
-	}
+	require.CmpNoError(err)
 	defer client.Close()
 
 	time.Sleep(100 * time.Millisecond)
@@ -374,12 +373,10 @@ func TestUserEventsDuplicateSubscription(t *testing.T) {
 	msgChan1 := make(chan UserEventsMessage)
 	sub1, err := client.SubscribeUserEvents(
 		context.Background(),
-		"0xABC",
+		common.HexToAddress("0xABC"),
 		msgChan1,
 	)
-	if err != nil {
-		t.Fatalf("first SubscribeUserEvents() failed: %v", err)
-	}
+	require.CmpNoError(err, "first SubscribeUserEvents() failed")
 	defer sub1.Unsubscribe()
 
 	time.Sleep(100 * time.Millisecond)
@@ -389,60 +386,51 @@ func TestUserEventsDuplicateSubscription(t *testing.T) {
 	msgChan2 := make(chan UserEventsMessage)
 	sub2, err := client.SubscribeUserEvents(
 		context.Background(),
-		"0xDEF",
+		common.HexToAddress("0xDEF"),
 		msgChan2,
 	)
 	if err == nil {
-		// If it succeeded, that's an error - userEvents should only allow 1
 		sub2.Unsubscribe()
-		t.Error("expected second userEvents subscription to fail")
+		require.True(false, "expected second userEvents subscription to fail")
 	}
 
 	client.mu.RLock()
 	count := len(client.activeSubscriptions["userEvents"])
 	client.mu.RUnlock()
 
-	if count != 1 {
-		t.Errorf("expected 1 active userEvents subscription, got %d", count)
-	}
-
+	require.Cmp(count, 1, "expected 1 active userEvents subscription")
 }
 
 // ===== Add/Remove Subscription Tests =====
 
-func TestUnsubscribe(t *testing.T) {
-	t.Parallel()
+func (s *WSSuite) TestUnsubscribe(assert, require *td.T) {
+	t := require.TB
+	require.Parallel()
+
 	server := newMockWSServer(t)
 	defer server.close()
 
 	client := New(server.url)
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
+
 	err := client.Start(ctx)
-	if err != nil {
-		t.Fatalf("Start() failed: %v", err)
-	}
+	require.CmpNoError(err)
 
 	time.Sleep(100 * time.Millisecond)
 
 	// Subscribe to multiple coins
 	msgChan1 := make(chan L2BookMessage)
 	sub1, err := client.SubscribeL2Book(context.Background(), "BTC", msgChan1)
-	if err != nil {
-		t.Fatalf("SubscribeL2Book BTC #1 failed: %v", err)
-	}
+	require.CmpNoError(err, "SubscribeL2Book BTC #1 failed")
 
 	msgChan2 := make(chan L2BookMessage)
 	sub2, err := client.SubscribeL2Book(context.Background(), "BTC", msgChan2)
-	if err != nil {
-		t.Fatalf("SubscribeL2Book BTC #2 failed: %v", err)
-	}
+	require.CmpNoError(err, "SubscribeL2Book BTC #2 failed")
 
 	msgChan3 := make(chan L2BookMessage)
 	sub3, err := client.SubscribeL2Book(context.Background(), "ETH", msgChan3)
-	if err != nil {
-		t.Fatalf("SubscribeL2Book ETH failed: %v", err)
-	}
+	require.CmpNoError(err, "SubscribeL2Book ETH failed")
 
 	time.Sleep(100 * time.Millisecond)
 
@@ -450,10 +438,7 @@ func TestUnsubscribe(t *testing.T) {
 	client.mu.RLock()
 	btcSubs := len(client.activeSubscriptions["l2Book:btc"])
 	client.mu.RUnlock()
-
-	if btcSubs != 2 {
-		t.Errorf("expected 2 BTC subscriptions, got %d", btcSubs)
-	}
+	require.Cmp(btcSubs, 2, "expected 2 BTC subscriptions")
 
 	// Unsubscribe from one BTC subscription
 	sub1.Unsubscribe()
@@ -464,22 +449,13 @@ func TestUnsubscribe(t *testing.T) {
 	client.mu.RLock()
 	btcSubs = len(client.activeSubscriptions["l2Book:btc"])
 	client.mu.RUnlock()
-
-	if btcSubs != 1 {
-		t.Errorf(
-			"expected 1 BTC subscription after unsubscribe, got %d",
-			btcSubs,
-		)
-	}
+	require.Cmp(btcSubs, 1, "expected 1 BTC subscription after unsubscribe")
 
 	// ETH should be unaffected
 	client.mu.RLock()
 	ethSubs := len(client.activeSubscriptions["l2Book:eth"])
 	client.mu.RUnlock()
-
-	if ethSubs != 1 {
-		t.Errorf("expected 1 ETH subscription, got %d", ethSubs)
-	}
+	require.Cmp(ethSubs, 1, "expected 1 ETH subscription")
 
 	sub2.Unsubscribe()
 	sub3.Unsubscribe()
@@ -488,8 +464,10 @@ func TestUnsubscribe(t *testing.T) {
 
 // ===== Multiple Subscriptions Per Channel =====
 
-func TestMultipleSubscriptionsPerChannel(t *testing.T) {
-	t.Parallel()
+func (s *WSSuite) TestMultipleSubscriptionsPerChannel(assert, require *td.T) {
+	t := require.TB
+	require.Parallel()
+
 	server := newMockWSServer(t)
 	defer server.close()
 
@@ -497,7 +475,8 @@ func TestMultipleSubscriptionsPerChannel(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	client.Start(ctx)
+	err := client.Start(ctx)
+	require.CmpNoError(err)
 
 	// Create subscriber channels
 	msgChan1 := make(chan L2BookMessage)
@@ -505,15 +484,11 @@ func TestMultipleSubscriptionsPerChannel(t *testing.T) {
 
 	// Subscribe to the same coin twice
 	sub1, err := client.SubscribeL2Book(ctx, "BTC", msgChan1)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.CmpNoError(err)
 	defer sub1.Unsubscribe()
 
 	sub2, err := client.SubscribeL2Book(ctx, "BTC", msgChan2)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.CmpNoError(err)
 	defer sub2.Unsubscribe()
 
 	time.Sleep(50 * time.Millisecond)
@@ -533,7 +508,7 @@ func TestMultipleSubscriptionsPerChannel(t *testing.T) {
 	msgBytes, _ := json.Marshal(msgData)
 	client.handleMessage(msgBytes)
 
-	// Both channels should receive the message concurrently
+	// Both channels should receive the message
 	received1 := false
 	received2 := false
 
@@ -545,41 +520,39 @@ func TestMultipleSubscriptionsPerChannel(t *testing.T) {
 		case <-msgChan2:
 			received2 = true
 		case <-timeout:
-			t.Errorf("timeout waiting for message (%d of 2)", i+1)
+			require.True(false, "timeout waiting for message (%d of 2)", i+1)
 		}
 	}
 
-	if !received1 || !received2 {
-		t.Errorf(
-			"both subscriptions should receive message: received1=%v, received2=%v",
-			received1,
-			received2,
-		)
-	}
+	require.True(
+		received1 && received2,
+		"both subscriptions should receive message: received1=%v, received2=%v",
+		received1,
+		received2,
+	)
 }
 
 // ===== Edge Cases =====
 
-func TestEmptyTradesMessage(t *testing.T) {
-	t.Parallel()
+func (s *WSSuite) TestEmptyTradesMessage(assert, require *td.T) {
+	t := require.TB
+	require.Parallel()
+
 	server := newMockWSServer(t)
 	defer server.close()
 
 	client := New(server.url)
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
+
 	err := client.Start(ctx)
-	if err != nil {
-		t.Fatalf("Start() failed: %v", err)
-	}
+	require.CmpNoError(err)
 
 	time.Sleep(100 * time.Millisecond)
 
 	msgChan := make(chan TradesMessage)
 	sub, err := client.SubscribeTrades(context.Background(), "ETH", msgChan)
-	if err != nil {
-		t.Fatalf("SubscribeTrades() failed: %v", err)
-	}
+	require.CmpNoError(err, "SubscribeTrades() failed")
 	defer sub.Unsubscribe()
 
 	time.Sleep(100 * time.Millisecond)
@@ -595,35 +568,34 @@ func TestEmptyTradesMessage(t *testing.T) {
 	// Channel should not receive anything
 	select {
 	case <-msgChan:
-		t.Error("expected no message for empty trades")
+		require.True(false, "expected no message for empty trades")
 	case <-time.After(100 * time.Millisecond):
-		// This is expected - no message for empty trades
+		// expected - no message
 	}
 
 	client.Close()
 }
 
-func TestMissingDataField(t *testing.T) {
-	t.Parallel()
+func (s *WSSuite) TestMissingDataField(assert, require *td.T) {
+	t := require.TB
+	require.Parallel()
+
 	server := newMockWSServer(t)
 	defer server.close()
 
 	client := New(server.url)
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
+
 	err := client.Start(ctx)
-	if err != nil {
-		t.Fatalf("Start() failed: %v", err)
-	}
+	require.CmpNoError(err)
 
 	time.Sleep(100 * time.Millisecond)
 
 	// Subscribe but don't expect message
 	msgChan := make(chan L2BookMessage)
 	sub, err := client.SubscribeL2Book(context.Background(), "BTC", msgChan)
-	if err != nil {
-		t.Fatalf("SubscribeL2Book() failed: %v", err)
-	}
+	require.CmpNoError(err, "SubscribeL2Book() failed")
 	defer sub.Unsubscribe()
 
 	time.Sleep(100 * time.Millisecond)
@@ -638,16 +610,19 @@ func TestMissingDataField(t *testing.T) {
 	// Channel should not receive anything
 	select {
 	case <-msgChan:
-		t.Error("expected no message for malformed message")
+		require.True(false, "expected no message for malformed message")
 	case <-time.After(100 * time.Millisecond):
-		// This is expected - no message for malformed data
+		// expected - no message
 	}
 
 	client.Close()
 }
 
-func TestSubscriptionPayload(t *testing.T) {
-	t.Parallel()
+// ===== Subscription payload shape =====
+
+func (s *WSSuite) TestSubscriptionPayload(assert, require *td.T) {
+	require.Parallel()
+
 	tests := []struct {
 		name         string
 		sub          SubscriptionType
@@ -674,18 +649,22 @@ func TestSubscriptionPayload(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			payload := tt.sub.subscriptionPayload()
-			payloadMap, ok := payload.(map[string]any)
-			if !ok {
-				t.Fatal("subscription payload is not a map")
-			}
+		payload := tt.sub.subscriptionPayload()
+		payloadMap, ok := payload.(map[string]any)
+		require.True(
+			ok,
+			"subscription payload is not a map in test %q",
+			tt.name,
+		)
 
-			for _, key := range tt.expectedKeys {
-				if _, exists := payloadMap[key]; !exists {
-					t.Errorf("expected key %q in payload", key)
-				}
-			}
-		})
+		for _, key := range tt.expectedKeys {
+			_, exists := payloadMap[key]
+			require.True(
+				exists,
+				"expected key %q in payload for test %q",
+				key,
+				tt.name,
+			)
+		}
 	}
 }

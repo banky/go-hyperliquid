@@ -1,4 +1,4 @@
-package exchange
+package utils
 
 import (
 	"errors"
@@ -10,7 +10,7 @@ import (
 
 // floatToWire converts a float64 to wire format (8 decimal string)
 // This matches the Python SDK's float_to_wire function for consistent precision
-func floatToWire(x float64) (string, error) {
+func FloatToWire(x float64) (string, error) {
 	// Handle NaN and infinity
 	if math.IsNaN(x) || math.IsInf(x, 0) {
 		return "", fmt.Errorf("invalid float value: %v", x)
@@ -45,7 +45,10 @@ func floatToWire(x float64) (string, error) {
 	return formatted, nil
 }
 
-func floatToInt(x float64, power int64) (int64, error) {
+// FloatToInt scales x by 10^power and converts it to int64.
+// Returns an error if the scaled value is not within 1e-3 of an integer,
+// which prevents accidental precision loss when rounding.
+func FloatToInt(x float64, power int64) (int64, error) {
 	withDecimals := x * math.Pow10(int(power))
 
 	rounded := math.Round(withDecimals)
@@ -58,18 +61,20 @@ func floatToInt(x float64, power int64) (int64, error) {
 	return int64(rounded), nil
 }
 
-func floatToUsdInt(x float64) (int64, error) {
-	return floatToInt(x, 6)
+// FloatToUsdInt converts a USD float to an int scaled by 1e6.
+// Fails if the value cannot be represented precisely at 6 decimals.
+func FloatToUsdInt(x float64) (int64, error) {
+	return FloatToInt(x, 6)
 }
 
-// stringToFloat converts a string price to float64
+// StringToFloat converts a string price to float64
 // Used for trigger prices that may already be in string format
-func stringToFloat(s string) (float64, error) {
+func StringToFloat(s string) (float64, error) {
 	return strconv.ParseFloat(s, 64)
 }
 
-// roundToSigfig rounds x to n significant figures.
-func roundToSigfig(x float64, n int64) float64 {
+// RoundToSigfig rounds x to n significant figures.
+func RoundToSigfig(x float64, n int64) float64 {
 	if x == 0 {
 		return 0
 	}
@@ -83,7 +88,7 @@ func roundToSigfig(x float64, n int64) float64 {
 // - Uses banker's rounding (round half to even)
 // - Supports negative decimals (round to tens, hundreds, etc.)
 // - Identical to Python for all float64 values
-func roundToDecimals(x float64, ndigits int64) float64 {
+func RoundToDecimals(x float64, ndigits int64) float64 {
 	// Python: if ndigits is 0 or positive
 	if ndigits >= 0 {
 		factor := math.Pow(10, float64(ndigits))
@@ -95,8 +100,8 @@ func roundToDecimals(x float64, ndigits int64) float64 {
 	return math.RoundToEven(x/factor) * factor
 }
 
-// getDex extracts the exchange name from a coin symbol
-func getDex(coin string) string {
+// GetDex extracts the exchange name from a coin symbol
+func GetDex(coin string) string {
 	if i := strings.Index(coin, ":"); i != -1 {
 		return coin[:i]
 	}

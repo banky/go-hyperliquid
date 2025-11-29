@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/coder/websocket"
+	"github.com/ethereum/go-ethereum/common"
 )
 
 // ===== Type-safe subscription methods =====
@@ -42,7 +43,7 @@ func (m *Client) SubscribeTrades(
 // SubscribeUserEvents subscribes to user events
 func (m *Client) SubscribeUserEvents(
 	ctx context.Context,
-	user string,
+	user common.Address,
 	ch chan<- UserEventsMessage,
 ) (Subscription, error) {
 	return newWSSubscription(ctx, m, UserEventsSubscription{User: user}, ch)

@@ -1,0 +1,18 @@
+{
+  "balances": [
+    {
+      "coin": "USDC",
+      "token": 0,
+      "total": "10.00172209",
+      "hold": "0.0",
+      "entryNtl": "0.0"
+    },
+    {
+      "coin": "UETH",
+      "token": 1242,
+      "total": "2.345360359",
+      "hold": "0.0",
+      "entryNtl": "2287.3126901"
+    }
+  ]
+}

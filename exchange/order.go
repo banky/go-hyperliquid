@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math/big"
 
+	"github.com/banky/go-hyperliquid/internal/utils"
 	"github.com/banky/go-hyperliquid/types"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/samber/mo"
@@ -250,12 +251,12 @@ func NewCancelRequestByCloid(
 // toOrderWire converts OrderRequest to OrderWire
 func (o orderRequest) toOrderWire(assetId int64) (orderWire, error) {
 	// Convert sizes and prices to wire format
-	sizeStr, err := floatToWire(o.Sz)
+	sizeStr, err := utils.FloatToWire(o.Sz)
 	if err != nil {
 		return orderWire{}, fmt.Errorf("failed to convert size: %w", err)
 	}
 
-	priceStr, err := floatToWire(o.LimitPx)
+	priceStr, err := utils.FloatToWire(o.LimitPx)
 	if err != nil {
 		return orderWire{}, fmt.Errorf("failed to convert limit price: %w", err)
 	}
@@ -289,7 +290,7 @@ func (t OrderType) toOrderTypeWire() (orderTypeWire, error) {
 
 	if t.Trigger != nil {
 		// Convert to wire format
-		triggerPxStr, err := floatToWire(t.Trigger.TriggerPx)
+		triggerPxStr, err := utils.FloatToWire(t.Trigger.TriggerPx)
 		if err != nil {
 			return orderTypeWire{}, fmt.Errorf(
 				"failed to convert trigger price: %w",

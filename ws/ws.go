@@ -12,6 +12,7 @@ import (
 
 	"github.com/banky/go-hyperliquid/constants"
 	"github.com/coder/websocket"
+	"github.com/ethereum/go-ethereum/common"
 )
 
 // Subscription represents an event subscription where events are
@@ -79,7 +80,7 @@ type ClientInterface interface {
 	) (Subscription, error)
 	SubscribeUserEvents(
 		ctx context.Context,
-		user string,
+		user common.Address,
 		ch chan<- UserEventsMessage,
 	) (Subscription, error)
 	SubscribeUserFills(
