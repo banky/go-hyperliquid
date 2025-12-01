@@ -1,6 +1,7 @@
 package types
 
 import (
+	"math/big"
 	"reflect"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -26,6 +27,12 @@ func BytesToCloid(b []byte) Cloid {
 // If s is larger than len(c), s will be cropped from the left.
 func HexToCloid(s string) Cloid {
 	return BytesToCloid(common.FromHex(s))
+}
+
+// BigToHash sets byte representation of b to cloid.
+// If b is larger than len(h), b will be cropped from the left.
+func BigToCloid(b *big.Int) Cloid {
+	return BytesToCloid(b.Bytes())
 }
 
 // SetBytes sets the Cloid to the value of b.

@@ -4,8 +4,10 @@ import (
 	"context"
 	"crypto/ecdsa"
 	"fmt"
+	"math/big"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/banky/go-hyperliquid/constants"
 	"github.com/banky/go-hyperliquid/types"
@@ -77,7 +79,7 @@ func (s *ExchangeIntegrationSuite) TestOrder(assert, require *td.T) {
 	// Place an order that should rest by setting the price very low
 	orderResponse, err := s.exchange.Order(
 		ctx,
-		NewOrderRequest(
+		OrderRequest(
 			"ETH",
 			true,
 			0.2,
@@ -93,10 +95,39 @@ func (s *ExchangeIntegrationSuite) TestOrder(assert, require *td.T) {
 
 	cancelResponse, err := s.exchange.Cancel(
 		ctx,
-		oid,
-		"ETH",
+		CancelRequest("ETH", oid),
 	)
 	require.CmpNoError(err)
+
+	fmt.Println(cancelResponse)
+}
+
+func (s *ExchangeIntegrationSuite) TestOrderWithCloid(assert, require *td.T) {
+	ctx := context.Background()
+
+	cloid := types.BigToCloid(big.NewInt(1))
+
+	// Place an order that should rest by setting the price very low
+	orderResponse, err := s.exchange.Order(
+		ctx,
+		OrderRequest(
+			"ETH",
+			true,
+			0.2,
+			1100,
+			WithLimitOrder(LimitOrder{Tif: "Gtc"}),
+			WithCloid(cloid),
+		),
+	)
+	require.CmpNoError(err)
+	require.NotNil(orderResponse.Resting)
+
+	cancelResponse, err := s.exchange.CancelByCloid(
+		ctx,
+		CancelByCloidRequest("ETH", cloid),
+	)
+
+	require.NotNil(orderResponse.Resting)
 
 	fmt.Println(cancelResponse)
 }
@@ -108,7 +139,7 @@ func (s *ExchangeIntegrationSuite) TestModify(assert, require *td.T) {
 
 	orderResponse, err := s.exchange.Order(
 		ctx,
-		NewOrderRequest(
+		OrderRequest(
 			"ETH",
 			true,
 			0.2,
@@ -125,8 +156,8 @@ func (s *ExchangeIntegrationSuite) TestModify(assert, require *td.T) {
 
 	modifyResponse, err := s.exchange.ModifyOrder(
 		ctx,
-		NewModifyRequest(
-			NewOrderRequest(
+		ModifyRequest(
+			OrderRequest(
 				"ETH",
 				true,
 				0.1,
@@ -146,8 +177,137 @@ func (s *ExchangeIntegrationSuite) TestModify(assert, require *td.T) {
 
 	_, err = s.exchange.Cancel(
 		ctx,
-		newOid,
-		"ETH",
+		CancelRequest("ETH", newOid),
 	)
 	require.CmpNoError(err)
+}
+
+func (s *ExchangeIntegrationSuite) TestMarketOrder(assert, require *td.T) {
+	ctx := context.Background()
+
+	openResponse, err := s.exchange.MarketOpen(
+		ctx,
+		MarketOpenRequest(
+			"ETH",
+			false,
+			0.05,
+			WithMarketSlippage(0.05),
+		),
+	)
+	require.CmpNoError(err)
+
+	fmt.Printf("response:%+v\n", openResponse)
+
+	fmt.Println("Waiting to close order")
+	time.Sleep(time.Second * 5)
+	fmt.Println("Closing order")
+
+	closeResponse, err := s.exchange.MarketClose(
+		ctx,
+		MarketCloseRequest("ETH"),
+	)
+	require.CmpNoError(err)
+
+	fmt.Printf("response:%+v\n", closeResponse)
+}
+
+func (s *ExchangeIntegrationSuite) TestScheduleCancel(assert, require *td.T) {
+	// Need a lot of volume to test this
+	require.TB.Skip()
+	ctx := context.Background()
+
+	openResponse, err := s.exchange.Order(
+		ctx,
+		OrderRequest(
+			"ETH",
+			true,
+			0.2,
+			1100,
+			WithLimitOrder(LimitOrder{Tif: "Gtc"}),
+		),
+	)
+	require.CmpNoError(err)
+
+	fmt.Printf("response:%+v\n", openResponse)
+	t := time.Now().Add(10 * time.Second)
+
+	cancelResponse, err := s.exchange.ScheduleCancel(
+		ctx,
+		ScheduleCancelRequest(&t),
+	)
+	require.CmpNoError(err)
+
+	fmt.Printf("response:%+v\n", cancelResponse)
+}
+
+func (s *ExchangeIntegrationSuite) TestUpdateLeverage(assert, require *td.T) {
+	ctx := context.Background()
+
+	response, err := s.exchange.UpdateLeverage(
+		ctx,
+		UpdateLeverageRequest("ETH", 22),
+	)
+	require.CmpNoError(err)
+
+	fmt.Printf("response:%+v\n", response)
+}
+
+func (s *ExchangeIntegrationSuite) TestUpdateIsolatedMargin(
+	assert, require *td.T,
+) {
+	// This test requires an open isolated position
+	// Can test by opening position and running
+	require.TB.Skip("Skipping test that requires open isolated position")
+	ctx := context.Background()
+
+	response, err := s.exchange.UpdateIsolatedMargin(
+		ctx,
+		UpdateIsolatedMarginRequest("ETH", 1),
+	)
+	require.CmpNoError(err)
+
+	fmt.Printf("response:%+v\n", response)
+}
+
+func (s *ExchangeIntegrationSuite) TestSetReferrer(
+	assert, require *td.T,
+) {
+	ctx := context.Background()
+
+	response, err := s.exchange.SetReferrer(
+		ctx,
+		"ASDFASDF",
+	)
+	require.CmpNoError(err)
+
+	fmt.Printf("response:%+v\n", response)
+}
+
+func (s *ExchangeIntegrationSuite) TestCreateSubAccount(
+	assert, require *td.T,
+) {
+	ctx := context.Background()
+
+	response, err := s.exchange.CreateSubAccount(
+		ctx,
+		"TestAccount1",
+	)
+	require.CmpNoError(err)
+
+	fmt.Printf("response:%+v\n", response)
+}
+
+func (s *ExchangeIntegrationSuite) TestUsdClassTransfer(
+	assert, require *td.T,
+) {
+	ctx := context.Background()
+
+	response, err := s.exchange.UsdClassTransfer(
+		ctx,
+		0.1,
+		true,
+	)
+	require.CmpNoError(err)
+
+	fmt.Printf("response:%+v\n", response)
 }

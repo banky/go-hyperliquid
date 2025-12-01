@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"encoding/binary"
 	"fmt"
-	"strconv"
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -118,12 +117,6 @@ func (e *Exchange) signUserSignedAction(
 	payloadTypes []apitypes.Type,
 	primaryType string,
 ) (signature, error) {
-	// signatureChainId is the chain used by the wallet to sign and can be any
-	// chain. hyperliquidChain determines the environment and prevents replaying
-	// an action on a different chain.
-
-	action["signatureChainId"] = "0x66eee"
-
 	var hyperliquidChain = "Mainnet"
 	if !e.rest.IsMainnet() {
 		hyperliquidChain = "Testnet"
@@ -426,21 +419,6 @@ func userSignedPayload(
 	payloadTypes []apitypes.Type,
 	action apitypes.TypedDataMessage,
 ) apitypes.TypedData {
-	rawChainId, ok := action["signatureChainId"].(string)
-	if !ok {
-		panic(
-			fmt.Sprintf(
-				"signatureChainId is not a string (got %T)",
-				action["signatureChainId"],
-			),
-		)
-	}
-
-	chainId, err := strconv.ParseInt(rawChainId, 16, 64)
-	if err != nil {
-		panic(fmt.Sprintf("invalid hex string for chainId: %q", rawChainId))
-	}
-
 	types := apitypes.Types{
 		"EIP712Domain": {
 			{Name: "name", Type: "string"},
@@ -458,7 +436,7 @@ func userSignedPayload(
 		Domain: apitypes.TypedDataDomain{
 			Name:              "HyperliquidSignTransaction",
 			Version:           "1",
-			ChainId:           math.NewHexOrDecimal256(chainId),
+			ChainId:           math.NewHexOrDecimal256(421614),
 			VerifyingContract: "0x0000000000000000000000000000000000000000",
 		},
 		Message: action,

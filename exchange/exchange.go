@@ -4,6 +4,8 @@ import (
 	"context"
 	"crypto/ecdsa"
 	"fmt"
+	"math"
+	"math/big"
 	"slices"
 	"sync/atomic"
 	"time"
@@ -13,6 +15,7 @@ import (
 	"github.com/banky/go-hyperliquid/internal/utils"
 	"github.com/banky/go-hyperliquid/rest"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/samber/mo"
 )
 
@@ -124,10 +127,10 @@ const DEFAULT_SLIPPAGE = 0.05
 // Order creates a single order
 func (e *Exchange) Order(
 	ctx context.Context,
-	order orderRequest,
-	opts ...CreateOrderOption,
+	request orderRequest,
+	opts ...orderOption,
 ) (OrderResponse, error) {
-	responses, err := e.BulkOrders(ctx, []orderRequest{order}, opts...)
+	responses, err := e.BulkOrders(ctx, []orderRequest{request}, opts...)
 	if err != nil {
 		return OrderResponse{}, err
 	}
@@ -140,36 +143,36 @@ func (e *Exchange) Order(
 // BulkOrders creates multiple orders in a single transaction
 func (e *Exchange) BulkOrders(
 	ctx context.Context,
-	orders []orderRequest,
-	opts ...CreateOrderOption,
+	requests []orderRequest,
+	opts ...orderOption,
 ) (BulkOrdersResponse, error) {
-	cfg := createOrderConfig{}
+	cfg := orderConfig{}
 	for _, opt := range opts {
 		opt(&cfg)
 	}
 
-	return e.bulkOrders(ctx, orders, cfg.builder, cfg.grouping)
+	return e.bulkOrders(ctx, requests, cfg.builder, cfg.grouping)
 }
 
 func (e *Exchange) bulkOrders(
 	ctx context.Context,
-	orders []orderRequest,
+	requests []orderRequest,
 	builder mo.Option[BuilderInfo],
 	grouping mo.Option[OrderGrouping],
 ) (BulkOrdersResponse, error) {
-	if len(orders) == 0 {
+	if len(requests) == 0 {
 		return BulkOrdersResponse{}, fmt.Errorf(
 			"at least one order is required",
 		)
 	}
 
-	orderWires := make([]orderWire, len(orders))
-	for i, order := range orders {
-		assetId, ok := e.info.GetAsset(order.Coin)
+	orderWires := make([]orderWire, len(requests))
+	for i, order := range requests {
+		assetId, ok := e.info.GetAsset(order.coin)
 		if !ok {
 			return BulkOrdersResponse{}, fmt.Errorf(
 				"unknown coin: %s",
-				order.Coin,
+				order.coin,
 			)
 		}
 
@@ -195,15 +198,30 @@ func (e *Exchange) bulkOrders(
 		)
 	}
 
-	return post[BulkOrdersResponse](ctx, e, action, timestamp, sig)
+	return post[BulkOrdersResponse](ctx, e, action, action.Type, timestamp, sig)
 }
 
 // ModifyOrder modifies a single order with Order ID
 func (e *Exchange) ModifyOrder(
 	ctx context.Context,
-	modify modifyRequest,
+	request modifyRequest,
 ) (OrderResponse, error) {
-	responses, err := e.BulkModifyOrders(ctx, []modifyRequest{modify})
+	return e.modifySingleOrder(ctx, request)
+}
+
+// ModifyOrderWithCloid modifies a single order with Client Order ID
+func (e *Exchange) ModifyOrderWithCloid(
+	ctx context.Context,
+	request modifyRequest,
+) (OrderResponse, error) {
+	return e.modifySingleOrder(ctx, request)
+}
+
+func (e *Exchange) modifySingleOrder(
+	ctx context.Context,
+	request modifyRequest,
+) (OrderResponse, error) {
+	responses, err := e.BulkModifyOrders(ctx, []modifyRequest{request})
 	if err != nil {
 		return OrderResponse{}, err
 	}
@@ -213,58 +231,24 @@ func (e *Exchange) ModifyOrder(
 	return OrderResponse(responses[0]), nil
 }
 
-// ModifyOrderWithCloid modifies a single order with Client Order ID
-// func (e *Exchange) ModifyOrderWithCloid(
-// 	ctx context.Context,
-// 	cloid common.Hash,
-// 	coin string,
-// 	isBuy bool,
-// 	sz float64,
-// 	limitPx float64,
-// 	orderType OrderType,
-// 	opts ...ModifyOrderOption,
-// ) (Response, error) {
-// 	cfg := defaultModifyOrderConfig()
-// 	for _, opt := range opts {
-// 		opt(&cfg)
-// 	}
-
-// 	order := OrderRequest{
-// 		Coin:       coin,
-// 		IsBuy:      isBuy,
-// 		Sz:         sz,
-// 		LimitPx:    limitPx,
-// 		OrderType:  orderType,
-// 		ReduceOnly: cfg.reduceOnly,
-// 		CLOID:      &cloid,
-// 	}
-
-// 	modify := ModifyRequest{
-// 		OID:   cloid,
-// 		Order: order,
-// 	}
-
-// 	return e.BulkModifyOrders(ctx, []ModifyRequest{modify})
-// }
-
 // BulkModifyOrders modifies multiple orders in a single transaction
 func (e *Exchange) BulkModifyOrders(
 	ctx context.Context,
-	modifies []modifyRequest,
+	requests []modifyRequest,
 ) (BulkOrdersResponse, error) {
-	if len(modifies) == 0 {
+	if len(requests) == 0 {
 		return BulkOrdersResponse{}, fmt.Errorf(
 			"at least one modify request is required",
 		)
 	}
 
-	modifyWires := make([]modifyWire, len(modifies))
-	for i, modify := range modifies {
-		assetId, ok := e.info.GetAsset(modify.Order.Coin)
+	modifyWires := make([]modifyWire, len(requests))
+	for i, modify := range requests {
+		assetId, ok := e.info.GetAsset(modify.Order.coin)
 		if !ok {
 			return BulkOrdersResponse{}, fmt.Errorf(
 				"unknown coin: %s",
-				modify.Order.Coin,
+				modify.Order.coin,
 			)
 		}
 
@@ -303,158 +287,163 @@ func (e *Exchange) BulkModifyOrders(
 		)
 	}
 
-	return post[BulkOrdersResponse](ctx, e, action, timestamp, sig)
+	return post[BulkOrdersResponse](ctx, e, action, action.Type, timestamp, sig)
 }
 
-// // MarketOpen opens a market position
-// func (e *Exchange) MarketOpen(
-// 	ctx context.Context,
-// 	coin string,
-// 	isBuy bool,
-// 	sz float64,
-// 	opts ...MarketOrderOption,
-// ) (any, error) {
-// 	cfg := defaultMarketOrderConfig()
-// 	for _, opt := range opts {
-// 		opt(&cfg)
-// 	}
+// MarketOpen opens a market position
+func (e *Exchange) MarketOpen(
+	ctx context.Context,
+	request marketOpenRequest,
+	opts ...orderOption,
+) (OrderResponse, error) {
+	cfg := orderConfig{}
+	for _, opt := range opts {
+		opt(&cfg)
+	}
 
-// 	px, err := e.getSlippagePrice(
-// 		ctx,
-// 		coin,
-// 		isBuy,
-// 		cfg.slippage,
-// 		cfg.px,
-// 	)
-// 	if err != nil {
-// 		return nil, fmt.Errorf("failed to get slippage price: %w", err)
-// 	}
+	px, err := e.getSlippagePrice(
+		ctx,
+		request.coin,
+		request.isBuy,
+		request.slippage.OrElse(DEFAULT_SLIPPAGE),
+		request.px,
+	)
+	if err != nil {
+		return OrderResponse{}, fmt.Errorf(
+			"failed to get slippage price: %w",
+			err,
+		)
+	}
 
-// 	// Market order is an aggressive limit order with IoC tif
-// 	return e.Order(
-// 		ctx,
-// 		coin,
-// 		isBuy,
-// 		sz,
-// 		px,
-// 		OrderType{
-// 			Limit: &LimitOrder{Tif: "Ioc"},
-// 		},
-// 		WithOrderReduceOnly(false),
-// 		withOrderCLOID(cfg.cloid),
-// 	)
-// }
+	// Market order is an aggressive limit order with IoC tif
+	return e.Order(
+		ctx,
+		OrderRequest(
+			request.coin,
+			request.isBuy,
+			request.sz,
+			px,
+			WithLimitOrder(LimitOrder{Tif: "Ioc"}),
+			WithReduceOnly(false),
+			withCloid(request.cloid),
+		),
+		withBuilderInfo(cfg.builder),
+	)
+}
 
-// // MarketClose closes a market position
-// func (e *Exchange) MarketClose(
-// 	ctx context.Context,
-// 	coin string,
-// 	opts ...MarketCloseOption,
-// ) (any, error) {
-// 	cfg := defaultMarketCloseConfig()
-// 	for _, opt := range opts {
-// 		opt(&cfg)
-// 	}
+// MarketClose closes a market position
+func (e *Exchange) MarketClose(
+	ctx context.Context,
+	request marketCloseRequest,
+	opts ...orderOption,
+) (OrderResponse, error) {
+	cfg := orderConfig{}
+	for _, opt := range opts {
+		opt(&cfg)
+	}
 
-// 	address := crypto.PubkeyToAddress(e.privateKey.PublicKey)
+	address := crypto.PubkeyToAddress(e.privateKey.PublicKey)
 
-// 	if a, ok := e.accountAddress.Get(); ok {
-// 		address = a
-// 	}
-// 	if v, ok := e.vaultAddress.Get(); ok {
-// 		address = v
-// 	}
+	if a, ok := e.accountAddress.Get(); ok {
+		address = a
+	}
+	if v, ok := e.vaultAddress.Get(); ok {
+		address = v
+	}
 
-// 	// Get user state to find the position
-// 	dex := getDex(coin)
-// 	userState, err := e.info.UserState(ctx, address, dex)
-// 	if err != nil {
-// 		return nil, fmt.Errorf("failed to get user state: %w", err)
-// 	}
+	// Get user state to find the position
+	dex := utils.GetDex(request.coin)
+	userState, err := e.info.UserState(ctx, address, dex)
+	if err != nil {
+		return OrderResponse{}, fmt.Errorf("failed to get user state: %w", err)
+	}
 
-// 	// Find the position for this coin
-// 	var position *info.Position
-// 	var positionSize float64
-// 	if userState.AssetPositions != nil {
-// 		for _, assetPos := range userState.AssetPositions {
-// 			if assetPos.Position.Coin == coin {
-// 				position = &assetPos.Position
-// 				sz, err := stringToFloat(assetPos.Position.Szi)
-// 				if err != nil {
-// 					return nil, fmt.Errorf("invalid position size: %w", err)
-// 				}
-// 				positionSize = sz
-// 				break
-// 			}
-// 		}
-// 	}
+	// Find the position for this coin
+	var position *info.Position
+	var positionSize float64
+	if userState.AssetPositions != nil {
+		for _, assetPos := range userState.AssetPositions {
+			if assetPos.Position.Coin == request.coin {
+				position = &assetPos.Position
+				positionSize = float64(assetPos.Position.Szi)
+				break
+			}
+		}
+	}
 
-// 	if position == nil {
-// 		return nil, fmt.Errorf("no position found for coin: %s", coin)
-// 	}
+	if position == nil {
+		return OrderResponse{}, fmt.Errorf(
+			"no position found for coin: %s",
+			request.coin,
+		)
+	}
 
-// 	// Determine size to close
-// 	var closeSz float64
-// 	if sz, ok := cfg.sz.Get(); ok {
-// 		closeSz = sz
-// 	} else {
-// 		// Close entire position
-// 		closeSz = math.Abs(positionSize)
-// 	}
+	// Determine size to close
+	var closeSz float64
+	if sz, ok := request.sz.Get(); ok {
+		closeSz = sz
+	} else {
+		// Close entire position
+		closeSz = math.Abs(positionSize)
+	}
 
-// 	// Determine buy/sell direction (opposite of current position)
-// 	isBuy := positionSize < 0
+	// Determine buy/sell direction (opposite of current position)
+	isBuy := positionSize < 0
 
-// 	px, err := e.getSlippagePrice(
-// 		ctx,
-// 		coin,
-// 		isBuy,
-// 		cfg.slippage,
-// 		cfg.px,
-// 	)
-// 	if err != nil {
-// 		return nil, fmt.Errorf("failed to get slippage price: %w", err)
-// 	}
+	px, err := e.getSlippagePrice(
+		ctx,
+		request.coin,
+		isBuy,
+		request.slippage.OrElse(DEFAULT_SLIPPAGE),
+		request.px,
+	)
+	if err != nil {
+		return OrderResponse{}, fmt.Errorf(
+			"failed to get slippage price: %w",
+			err,
+		)
+	}
 
-// 	// Create market close order
-// 	return e.Order(
-// 		ctx,
-// 		coin,
-// 		isBuy,
-// 		closeSz,
-// 		px,
-// 		OrderType{
-// 			Limit: &LimitOrder{Tif: "Ioc"},
-// 		},
-// 		WithOrderReduceOnly(true),
-// 		withOrderCLOID(cfg.cloid),
-// 	)
-// }
+	// Market order is an aggressive limit order with IoC tif
+	return e.Order(
+		ctx,
+		OrderRequest(
+			request.coin,
+			isBuy,
+			closeSz,
+			px,
+			WithLimitOrder(LimitOrder{Tif: "Ioc"}),
+			WithReduceOnly(false),
+			withCloid(request.cloid),
+		),
+		withBuilderInfo(cfg.builder),
+	)
+}
 
 // Cancel cancels a single order by order ID
 func (e *Exchange) Cancel(
 	ctx context.Context,
-	oid int64,
-	coin string,
+	request cancelRequest,
 ) (CancelResponse, error) {
-	return e.BulkCancel(ctx, []CancelRequest{NewCancelRequest(coin, oid)})
+	responses, err := e.BulkCancel(ctx, []cancelRequest{request})
+	if err != nil {
+		return CancelResponse{}, err
+	}
+	if len(responses) == 0 {
+		return CancelResponse{}, fmt.Errorf("empty response from modify order")
+	}
+	return CancelResponse(responses[0]), nil
 }
-
-// // func (e *Exchange) CancelByCloid(
-// // 	ctx context.Context,
-// // 	cloid common.Hash,
-// // 	coin string,
-// // ) (Response, error) {
-
-// // }
 
 // BulkCancel cancels multiple orders in a single transaction
 func (e *Exchange) BulkCancel(
 	ctx context.Context,
-	cancels []CancelRequest,
-) (CancelResponse, error) {
+	cancels []cancelRequest,
+) (BulkCancelResponse, error) {
 	if len(cancels) == 0 {
-		return CancelResponse{}, fmt.Errorf("at least one cancel is required")
+		return BulkCancelResponse{}, fmt.Errorf(
+			"at least one cancel is required",
+		)
 	}
 
 	cancelWires := make([]cancelWire, len(cancels))
@@ -462,7 +451,10 @@ func (e *Exchange) BulkCancel(
 		// Get asset ID for this cancel's coin
 		assetId, ok := e.info.GetAsset(cancel.Coin)
 		if !ok {
-			return CancelResponse{}, fmt.Errorf("unknown coin: %s", cancel.Coin)
+			return BulkCancelResponse{}, fmt.Errorf(
+				"unknown coin: %s",
+				cancel.Coin,
+			)
 		}
 
 		cancelWires[i] = cancel.toCancelWire(assetId)
@@ -473,18 +465,38 @@ func (e *Exchange) BulkCancel(
 	timestamp := e.nextNonce()
 	sig, err := signL1Action(e, action, uint64(timestamp))
 	if err != nil {
-		return CancelResponse{}, fmt.Errorf("failed to sign action: %w", err)
+		return BulkCancelResponse{}, fmt.Errorf(
+			"failed to sign action: %w",
+			err,
+		)
 	}
 
-	return post[CancelResponse](ctx, e, action, timestamp, sig)
+	return post[BulkCancelResponse](ctx, e, action, action.Type, timestamp, sig)
+}
+
+// CancelByCloid cancels an order by its client order ID.
+func (e *Exchange) CancelByCloid(
+	ctx context.Context,
+	request cancelByCloidRequest,
+) (any, error) {
+	responses, err := e.BulkCancelByCloid(ctx, []cancelByCloidRequest{request})
+	if err != nil {
+		return CancelResponse{}, err
+	}
+	if len(responses) == 0 {
+		return CancelResponse{}, fmt.Errorf("empty response from modify order")
+	}
+	return CancelResponse(responses[0]), nil
 }
 
 func (e *Exchange) BulkCancelByCloid(
 	ctx context.Context,
-	cancels []CancelRequestByCloid,
-) (CancelResponse, error) {
+	cancels []cancelByCloidRequest,
+) (BulkCancelResponse, error) {
 	if len(cancels) == 0 {
-		return CancelResponse{}, fmt.Errorf("at least one cancel is required")
+		return BulkCancelResponse{}, fmt.Errorf(
+			"at least one cancel is required",
+		)
 	}
 
 	cancelWires := make([]cancelByCloidWire, len(cancels))
@@ -492,7 +504,10 @@ func (e *Exchange) BulkCancelByCloid(
 		// Get asset ID for this cancel's coin
 		assetId, ok := e.info.GetAsset(cancel.Coin)
 		if !ok {
-			return CancelResponse{}, fmt.Errorf("unknown coin: %s", cancel.Coin)
+			return BulkCancelResponse{}, fmt.Errorf(
+				"unknown coin: %s",
+				cancel.Coin,
+			)
 		}
 
 		cancelWires[i] = cancel.toCancelByCloidWire(assetId)
@@ -503,181 +518,187 @@ func (e *Exchange) BulkCancelByCloid(
 	timestamp := e.nextNonce()
 	sig, err := signL1Action(e, action, uint64(timestamp))
 	if err != nil {
-		return CancelResponse{}, fmt.Errorf("failed to sign action: %w", err)
+		return BulkCancelResponse{}, fmt.Errorf(
+			"failed to sign action: %w",
+			err,
+		)
 	}
 
-	return post[CancelResponse](
+	return post[BulkCancelResponse](
 		ctx,
 		e,
 		action,
+		action.Type,
 		timestamp,
 		sig,
 	)
 }
 
-// // Schedules a time to cancel all open orders. The time must be at least 5
-// // seconds. Once the duration elapses, all open orders will be canceled and a
-// // trigger count will be incremented. The max number of triggers per day is
+// Schedules a time to cancel all open orders. The time must be at least 5
+// seconds. Once the duration elapses, all open orders will be canceled and a
+// trigger count will be incremented. The max number of triggers per day is
 // 10.
-// // This trigger count is reset at 00:00 UTC.
-// //
-// // if time is not nil, then set the cancel time in the future. If nil, then
-// // unsets any cancel time in the future.
-// func (e *Exchange) ScheduleCancel(
-// 	ctx context.Context,
-// 	opts ...ScheduleCancelOption,
-// ) (Response, error) {
-// 	cfg := defaultScheduleCancelConfig()
-// 	for _, opt := range opts {
-// 		opt(&cfg)
-// 	}
+// This trigger count is reset at 00:00 UTC.
+//
+// if time is not nil, then set the cancel time in the future. If nil, then
+// unsets any cancel time in the future.
+func (e *Exchange) ScheduleCancel(
+	ctx context.Context,
+	request scheduleCancelRequest,
+) (CancelResponse, error) {
+	action := scheduleCancelToAction(request)
 
-// 	action := map[string]any{
-// 		"type": "scheduleCancel",
-// 	}
+	timestamp := e.nextNonce()
+	sig, err := signL1Action(e, action, uint64(timestamp))
+	if err != nil {
+		return CancelResponse{}, fmt.Errorf("failed to sign action: %w", err)
+	}
 
-// 	if t, ok := cfg.time.Get(); ok {
-// 		action["time"] = time.Now().Add(t).UnixMilli()
-// 	}
+	return post[CancelResponse](ctx, e, action, action.Type, timestamp, sig)
+}
 
-//  timestamp := e.nextNonce()
-// 	sig, err := e.signL1Action(action, uint64(timestamp))
-// 	if err != nil {
-// 		return Response{}, fmt.Errorf("failed to sign action: %w", err)
-// 	}
+// UpdateLeverage updates the leverage for an asset
+func (e *Exchange) UpdateLeverage(
+	ctx context.Context,
+	request updateLeverageRequest,
+) (UpdateResponse, error) {
+	// Get asset ID for the leverage update
+	assetId, ok := e.info.GetAsset(request.coin)
+	if !ok {
+		return UpdateResponse{}, fmt.Errorf("unknown coin: %s", request.coin)
+	}
 
-// 	return e.post(ctx, action, timestamp, sig)
-// }
+	action := updateLeverageToAction(request, assetId)
 
-// // UpdateLeverage updates the leverage for an asset
-// func (e *Exchange) UpdateLeverage(
-// 	ctx context.Context,
-// 	leverage int64,
-// 	name string,
-// 	isCross bool,
-// ) (Response, error) {
-// 	// Get asset ID for the leverage update
-// 	assetId, ok := e.info.GetAsset(name)
-// 	if !ok {
-// 		return Response{}, fmt.Errorf("unknown coin: %s", name)
-// 	}
+	timestamp := e.nextNonce()
+	sig, err := signL1Action(e, action, uint64(timestamp))
+	if err != nil {
+		return UpdateResponse{}, fmt.Errorf("failed to sign action: %w", err)
+	}
 
-// 	action := map[string]any{
-// 		"type":     "updateLeverage",
-// 		"asset":    assetId,
-// 		"isCross":  isCross,
-// 		"leverage": leverage,
-// 	}
+	return post[UpdateResponse](ctx, e, action, action.Type, timestamp, sig)
+}
 
-//  timestamp := e.nextNonce()
-// 	sig, err := e.signL1Action(action, uint64(timestamp))
-// 	if err != nil {
-// 		return Response{}, fmt.Errorf("failed to sign action: %w", err)
-// 	}
+// UpdateIsolatedMargin updates the isolated margin for an asset
+func (e *Exchange) UpdateIsolatedMargin(
+	ctx context.Context,
+	request updateIsolatedMarginRequest,
+) (UpdateResponse, error) {
+	intAmount, err := utils.FloatToUsdInt(request.amount)
+	if err != nil {
+		return UpdateResponse{}, fmt.Errorf(
+			"failed to convert amount to USD: %w",
+			err,
+		)
+	}
 
-// 	return e.post(ctx, action, timestamp, sig)
-// }
+	asset, ok := e.info.NameToAsset(request.coin)
+	if !ok {
+		return UpdateResponse{}, fmt.Errorf(
+			"unknown asset for name: %s",
+			request.coin,
+		)
+	}
 
-// // UpdateIsolatedMargin updates the isolated margin for an asset
-// func (e *Exchange) UpdateIsolatedMargin(
-// 	ctx context.Context,
-// 	name string,
-// 	amount float64,
-// ) (Response, error) {
-// 	intAmount, err := floatToUsdInt(amount)
-// 	if err != nil {
-// 		return Response{}, fmt.Errorf(
-// 			"failed to convert amount to USD: %w",
-// 			err,
-// 		)
-// 	}
+	action := updateIsolatedMarginToAction(asset, intAmount)
 
-// 	asset, ok := e.info.NameToAsset(name)
-// 	if !ok {
-// 		return Response{}, fmt.Errorf("unknown asset for name: %s", name)
-// 	}
+	timestamp := e.nextNonce()
+	sig, err := signL1Action(e, action, uint64(timestamp))
+	if err != nil {
+		return UpdateResponse{}, fmt.Errorf("failed to sign action: %w", err)
+	}
 
-// 	action := map[string]any{
-// 		"type":  "updateIsolatedMargin",
-// 		"asset": int64(asset),
-// 		"isBuy": true,
-// 		"ntli":  int64(intAmount),
-// 	}
+	return post[UpdateResponse](ctx, e, action, action.Type, timestamp, sig)
+}
 
-//  timestamp := e.nextNonce()
-// 	sig, err := e.signL1Action(action, uint64(timestamp))
-// 	if err != nil {
-// 		return Response{}, fmt.Errorf("failed to sign action: %w", err)
-// 	}
+// SetReferrer sets the referrer code
+func (e *Exchange) SetReferrer(
+	ctx context.Context,
+	code string,
+) (SetReferrerResponse, error) {
+	action := setReferrerAction{
+		Type: "setReferrer",
+		Code: code,
+	}
 
-// 	return e.post(ctx, action, timestamp, sig)
-// }
+	timestamp := e.nextNonce()
+	sig, err := signL1Action(e, action, uint64(timestamp))
+	if err != nil {
+		return SetReferrerResponse{}, fmt.Errorf(
+			"failed to sign action: %w",
+			err,
+		)
+	}
 
-// // SetReferrer sets the referrer code
-// func (e *Exchange) SetReferrer(
-// 	ctx context.Context,
-// 	code string,
-// ) (Response, error) {
-// 	action := map[string]any{
-// 		"type": "setReferrer",
-// 		"code": code,
-// 	}
+	return post[SetReferrerResponse](
+		ctx,
+		e,
+		action,
+		action.Type,
+		timestamp,
+		sig,
+	)
+}
 
-//  timestamp := e.nextNonce()
-// 	sig, err := e.signL1Action(action, uint64(timestamp))
-// 	if err != nil {
-// 		return Response{}, fmt.Errorf("failed to sign action: %w", err)
-// 	}
+func (e *Exchange) CreateSubAccount(
+	ctx context.Context,
+	name string,
+) (CreateSubAccountResponse, error) {
+	action := createSubAccountToAction(name)
 
-// 	return e.post(ctx, action, timestamp, sig)
-// }
+	timestamp := e.nextNonce()
+	sig, err := signL1Action(e, action, uint64(timestamp))
+	if err != nil {
+		return CreateSubAccountResponse{}, fmt.Errorf(
+			"failed to sign action: %w",
+			err,
+		)
+	}
 
-// func (e *Exchange) CreateSubAccount(
-// 	ctx context.Context,
-// 	name string,
-// ) (Response, error) {
-// 	action := map[string]any{
-// 		"type": "createSubAccount",
-// 		"name": name,
-// 	}
+	return post[CreateSubAccountResponse](
+		ctx,
+		e,
+		action,
+		action.Type,
+		timestamp,
+		sig,
+	)
+}
 
-//  timestamp := e.nextNonce()
-// 	sig, err := e.signL1Action(action, uint64(timestamp))
-// 	if err != nil {
-// 		return Response{}, fmt.Errorf("failed to sign action: %w", err)
-// 	}
+func (e *Exchange) UsdClassTransfer(
+	ctx context.Context,
+	amount float64,
+	toPerp bool,
+) (UpdateResponse, error) {
+	timestamp := e.nextNonce()
+	strAmount, err := utils.FloatToWire(amount)
+	if err != nil {
+		return UpdateResponse{}, fmt.Errorf(
+			"failed to convert amount to wire format: %w",
+			err,
+		)
+	}
 
-// 	return e.post(ctx, action, timestamp, sig)
-// }
+	action := map[string]any{
+		"amount": strAmount,
+		"toPerp": toPerp,
+		"nonce":  big.NewInt(timestamp),
+	}
 
-// func (e *Exchange) UsdClassTransfer(
-// 	ctx context.Context,
-// 	amount float64,
-// 	toPerp bool,
-// ) (Response, error) {
-//  timestamp := e.nextNonce()
-// 	strAmount, err := floatToWire(amount)
-// 	if err != nil {
-// 		return Response{}, fmt.Errorf(
-// 			"failed to convert amount to wire format: %w",
-// 			err,
-// 		)
-// 	}
+	sig, err := e.signUsdClassTransferAction(action)
+	if err != nil {
+		return UpdateResponse{}, fmt.Errorf("failed to sign action: %w", err)
+	}
 
-// 	action := map[string]any{
-// 		"type":   "usdClassTransfer",
-// 		"amount": strAmount,
-// 		"toPerp": toPerp,
-// 		"nonce":  timestamp,
-// 	}
-
-// 	sig, err := e.signUsdClassTransferAction(action)
-// 	if err != nil {
-// 		return Response{}, fmt.Errorf("failed to sign action: %w", err)
-// 	}
-
-// 	return e.post(ctx, action, timestamp, sig)
-// }
+	return post[UpdateResponse](
+		ctx,
+		e,
+		action,
+		"usdClassTransfer",
+		timestamp,
+		sig,
+	)
+}
 
 // // SendAsset is used to transfer tokens between different perp
 // // DEXs, spot balance, users, and/or sub-accounts. Use "" to specify the
@@ -1609,10 +1630,11 @@ func sortStringMap(m map[string]string) [][]string {
 	return result
 }
 
-func post[T any, U action](
+func post[T any, U any](
 	ctx context.Context,
 	exchange *Exchange,
 	action U,
+	actionType string,
 	timestamp int64,
 	sig signature,
 ) (T, error) {
@@ -1622,7 +1644,6 @@ func post[T any, U action](
 		"nonce":     timestamp,
 	}
 
-	actionType := action.getType()
 	if actionType == "usdClassTransfer" || actionType == "sendAsset" {
 		payload["vaultAddress"] = nil
 	} else if v, ok := exchange.vaultAddress.Get(); ok {
@@ -1638,7 +1659,7 @@ func post[T any, U action](
 	}
 
 	var zero T
-	var response Response[T]
+	var response response[T]
 	if err := exchange.rest.Post(ctx, "/exchange", payload, &response); err != nil {
 		return zero, fmt.Errorf(
 			"failed to post to /exchange. Type: %v: %w",
@@ -1649,7 +1670,7 @@ func post[T any, U action](
 
 	if response.IsErr() {
 		return zero, fmt.Errorf(
-			"exchange error (type %v): %s",
+			"exchange error (action: %v): %s",
 			actionType,
 			response.ErrorMessage,
 		)

@@ -8,7 +8,7 @@ import (
 // String implements fmt.Stringer for orderRequest
 func (o orderRequest) String() string {
 	cloid := ""
-	if c, ok := o.Cloid.Get(); ok {
+	if c, ok := o.cloid.Get(); ok {
 		cloid = c.String()
 	}
 
@@ -22,8 +22,8 @@ func (o orderRequest) String() string {
 			"  ReduceOnly: %v\n"+
 			"  Cloid:      %s\n"+
 			"}",
-		o.Coin, o.IsBuy, o.Sz, o.LimitPx, indentString(o.OrderType.String(), 2),
-		o.ReduceOnly, cloid,
+		o.coin, o.isBuy, o.sz, o.limitPx, indentString(o.orderType.String(), 2),
+		o.reduceOnly, cloid,
 	)
 }
 
@@ -71,28 +71,6 @@ func (b BuilderInfo) String() string {
 	)
 }
 
-// String implements fmt.Stringer for UserWeiPair
-func (u UserWeiPair) String() string {
-	return fmt.Sprintf(
-		"UserWeiPair{\n"+
-			"  User: %s\n"+
-			"  Wei:  %s\n"+
-			"}",
-		u.User.Hex(), u.Wei.String(),
-	)
-}
-
-// String implements fmt.Stringer for TokenWeiPair
-func (t TokenWeiPair) String() string {
-	return fmt.Sprintf(
-		"TokenWeiPair{\n"+
-			"  Token: %d\n"+
-			"  Wei:   %s\n"+
-			"}",
-		t.Token, t.Wei.String(),
-	)
-}
-
 // String implements fmt.Stringer for modifyRequest
 func (m modifyRequest) String() string {
 	oid := ""
@@ -116,7 +94,7 @@ func (m modifyRequest) String() string {
 }
 
 // String implements fmt.Stringer for CancelRequest
-func (c CancelRequest) String() string {
+func (c cancelRequest) String() string {
 	return fmt.Sprintf(
 		"CancelRequest{\n"+
 			"  Coin: %s\n"+
@@ -127,7 +105,7 @@ func (c CancelRequest) String() string {
 }
 
 // String implements fmt.Stringer for CancelRequestByCloid
-func (c CancelRequestByCloid) String() string {
+func (c cancelByCloidRequest) String() string {
 	return fmt.Sprintf(
 		"CancelRequestByCloid{\n"+
 			"  Coin:  %s\n"+
@@ -215,7 +193,7 @@ func (c cancelByCloidWire) String() string {
 }
 
 // String implements fmt.Stringer for orderActionWire
-func (o orderActionWire) String() string {
+func (o orderAction) String() string {
 	orders := formatOrderWireSlice(o.Orders)
 	builder := ""
 	if o.Builder != nil {
@@ -234,7 +212,7 @@ func (o orderActionWire) String() string {
 }
 
 // String implements fmt.Stringer for cancelActionWire
-func (c cancelActionWire) String() string {
+func (c cancelAction) String() string {
 	return fmt.Sprintf(
 		"cancelActionWire{\n"+
 			"  Type:    %s\n"+

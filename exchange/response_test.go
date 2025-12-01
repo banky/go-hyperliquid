@@ -2,6 +2,7 @@ package exchange
 
 import (
 	"encoding/json"
+	"strings"
 	"testing"
 )
 
@@ -46,7 +47,7 @@ const (
 )
 
 func TestUnmarshalResponse_OK_RestingStatus(t *testing.T) {
-	var resp Response[BulkOrdersResponse]
+	var resp response[BulkOrdersResponse]
 
 	if err := json.Unmarshal([]byte(okRestingJSON), &resp); err != nil {
 		t.Fatalf("unexpected error unmarshalling okRestingJSON: %v", err)
@@ -76,10 +77,6 @@ func TestUnmarshalResponse_OK_RestingStatus(t *testing.T) {
 		t.Fatalf("expected Resting to be non-nil")
 	}
 
-	if status.Error != nil {
-		t.Fatalf("expected Error to be nil, got %q", *status.Error)
-	}
-
 	const expectedOID int64 = 77738308
 	if status.Resting.Oid != expectedOID {
 		t.Fatalf(
@@ -91,48 +88,19 @@ func TestUnmarshalResponse_OK_RestingStatus(t *testing.T) {
 }
 
 func TestUnmarshalResponse_OK_ErrorStatus(t *testing.T) {
-	var resp Response[BulkOrdersResponse]
+	var resp response[BulkOrdersResponse]
 
-	if err := json.Unmarshal([]byte(okErrorStatusJSON), &resp); err != nil {
-		t.Fatalf("unexpected error unmarshalling okErrorStatusJSON: %v", err)
+	err := json.Unmarshal([]byte(okErrorStatusJSON), &resp)
+	if err == nil {
+		t.Fatal("Expected error, got nil")
 	}
-
-	if resp.Status != "ok" {
-		t.Fatalf("expected Status == %q, got %q", "ok", resp.Status)
-	}
-
-	if resp.Data == nil {
-		t.Fatalf("expected Data to be non-nil for ok response")
-	}
-
-	if resp.ErrorMessage != "" {
-		t.Fatalf(
-			"expected ErrorMessage to be empty for ok response, got %q",
-			resp.ErrorMessage,
-		)
-	}
-
-	if len(*resp.Data) != 1 {
-		t.Fatalf("expected 1 status, got %d", len(*resp.Data))
-	}
-
-	status := (*resp.Data)[0]
-	if status.Resting != nil {
-		t.Fatalf("expected Resting to be nil, got %+v", status.Resting)
-	}
-
-	if status.Error == nil {
-		t.Fatalf("expected Error to be non-nil")
-	}
-
-	expectedErr := "Order must have minimum value of $10."
-	if *status.Error != expectedErr {
-		t.Fatalf("expected Error == %q, got %q", expectedErr, *status.Error)
+	if !strings.Contains(err.Error(), "Order must have minimum value of $10.") {
+		t.Fatal("Error doesn't contain expected message")
 	}
 }
 
 func TestUnmarshalResponse_Err_TopLevel(t *testing.T) {
-	var resp Response[OrderResponse]
+	var resp response[OrderResponse]
 
 	if err := json.Unmarshal([]byte(errTopLevelJSON), &resp); err != nil {
 		t.Fatalf("unexpected error unmarshalling errTopLevelJSON: %v", err)

@@ -2,6 +2,7 @@ package exchange
 
 import (
 	"crypto/ecdsa"
+	"math/big"
 	"testing"
 	"time"
 
@@ -49,7 +50,7 @@ func testExchange(isMainnet bool) *Exchange {
 
 func TestPhantomAgentCreation(t *testing.T) {
 	timestamp := 1677777606040
-	order := NewOrderRequest(
+	order := OrderRequest(
 		"ETH",
 		true,
 		0.0147,
@@ -107,7 +108,7 @@ func TestL1SigningOrderWithCloidMatches(t *testing.T) {
 	}
 
 	timestamp := 0
-	order := NewOrderRequest(
+	order := OrderRequest(
 		"ETH",
 		true,
 		100,
@@ -208,7 +209,60 @@ func TestL1SigningOrderWithCloidMatches(t *testing.T) {
 			sigTestnet.V,
 		)
 	}
+}
 
+func TestSignUsdTransferAction(t *testing.T) {
+	privateKey, err := crypto.HexToECDSA(
+		"0123456789012345678901234567890123456789012345678901234567890123",
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	message := map[string]any{
+		"destination": "0x5e9ee1089755c3435139848e47e6635505d5a13a",
+		"amount":      "1",
+		"time":        big.NewInt(1687816341423),
+	}
+
+	e, err := New(Config{
+		SkipInfo:   true,
+		BaseURL:    constants.TESTNET_API_URL,
+		PrivateKey: privateKey,
+	})
+
+	sig, err := e.signUsdTransferAction(message)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	expectedR := common.HexToHash(
+		"0x637b37dd731507cdd24f46532ca8ba6eec616952c56218baeff04144e4a77073",
+	)
+	expectedS := common.HexToHash(
+		"0x11a6a24900e6e314136d2592e2f8d502cd89b7c15b198e1bee043c9589f9fad7",
+	)
+	expectedV := byte(27)
+
+	if sig.R != expectedR {
+		t.Fatalf(
+			"R mismatch: expected %s, got %s",
+			expectedR.Hex(),
+			sig.R.Hex(),
+		)
+	}
+
+	if sig.S != expectedS {
+		t.Fatalf(
+			"S mismatch: expected %s, got %s",
+			expectedS.Hex(),
+			sig.S.Hex(),
+		)
+	}
+
+	if sig.V != expectedV {
+		t.Fatalf("V mismatch: expected %d, got %d", expectedV, sig.V)
+	}
 }
 
 // func TestL1ActionSigningProducesValidSignature(t *testing.T) {
