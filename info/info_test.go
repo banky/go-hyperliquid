@@ -45,6 +45,10 @@ func (m *mockRestClient) IsMainnet() bool {
 	return false
 }
 
+func (m *mockRestClient) NetworkName() string {
+	return "Testnet"
+}
+
 // Mock WS client for testing
 type mockWsClient struct {
 	startFunc                   func(ctx context.Context) error

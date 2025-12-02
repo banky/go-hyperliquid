@@ -21,6 +21,7 @@ type Client struct {
 type ClientInterface interface {
 	BaseUrl() string
 	IsMainnet() bool
+	NetworkName() string
 	Post(ctx context.Context, path string, body any, result any) error
 }
 
@@ -60,6 +61,14 @@ func (c *Client) BaseUrl() string {
 
 func (c *Client) IsMainnet() bool {
 	return c.baseUrl == constants.MAINNET_API_URL
+}
+
+func (c *Client) NetworkName() string {
+	if c.IsMainnet() {
+		return "Mainnet"
+	} else {
+		return "Testnet"
+	}
 }
 
 // Post sends a POST request to the specified path with the provided body.

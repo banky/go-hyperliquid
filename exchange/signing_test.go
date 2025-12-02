@@ -2,7 +2,6 @@ package exchange
 
 import (
 	"crypto/ecdsa"
-	"math/big"
 	"testing"
 	"time"
 
@@ -134,7 +133,14 @@ func TestL1SigningOrderWithCloidMatches(t *testing.T) {
 		PrivateKey: privateKey,
 	})
 
-	sig, err := signL1Action(e, action, uint64(timestamp))
+	sig, err := signL1Action(
+		action,
+		uint64(timestamp),
+		e.privateKey,
+		e.vaultAddress,
+		e.expiresAfter,
+		e.rest.IsMainnet(),
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -173,7 +179,14 @@ func TestL1SigningOrderWithCloidMatches(t *testing.T) {
 		PrivateKey: privateKey,
 	})
 
-	sigTestnet, err := signL1Action(eTestnet, action, uint64(timestamp))
+	sigTestnet, err := signL1Action(
+		action,
+		uint64(timestamp),
+		eTestnet.privateKey,
+		eTestnet.vaultAddress,
+		eTestnet.expiresAfter,
+		eTestnet.rest.IsMainnet(),
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -219,19 +232,16 @@ func TestSignUsdTransferAction(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	message := map[string]any{
-		"destination": "0x5e9ee1089755c3435139848e47e6635505d5a13a",
-		"amount":      "1",
-		"time":        big.NewInt(1687816341423),
+	action := usdTransferAction{
+		Type:             "usdSend",
+		Amount:           "1",
+		Destination:      "0x5e9ee1089755c3435139848e47e6635505d5a13a",
+		Time:             1687816341423,
+		HyperliquidChain: "Testnet",
+		SignatureChainId: getSignatureChainId(),
 	}
 
-	e, err := New(Config{
-		SkipInfo:   true,
-		BaseURL:    constants.TESTNET_API_URL,
-		PrivateKey: privateKey,
-	})
-
-	sig, err := e.signUsdTransferAction(message)
+	sig, err := signUsdTransferAction(action, privateKey)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -243,6 +253,63 @@ func TestSignUsdTransferAction(t *testing.T) {
 		"0x11a6a24900e6e314136d2592e2f8d502cd89b7c15b198e1bee043c9589f9fad7",
 	)
 	expectedV := byte(27)
+
+	if sig.R != expectedR {
+		t.Fatalf(
+			"R mismatch: expected %s, got %s",
+			expectedR.Hex(),
+			sig.R.Hex(),
+		)
+	}
+
+	if sig.S != expectedS {
+		t.Fatalf(
+			"S mismatch: expected %s, got %s",
+			expectedS.Hex(),
+			sig.S.Hex(),
+		)
+	}
+
+	if sig.V != expectedV {
+		t.Fatalf("V mismatch: expected %d, got %d", expectedV, sig.V)
+	}
+}
+
+func TestSubAccountTransferAction(t *testing.T) {
+	privateKey, err := crypto.HexToECDSA(
+		"0123456789012345678901234567890123456789012345678901234567890123",
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	action := subAccountTransferAction{
+		Type:           "subAccountTransfer",
+		SubAccountUser: "0x1d9470d4b963f552e6f671a81619d395877bf409",
+
+		IsDeposit: true,
+		Usd:       10,
+	}
+
+	sig, err := signL1Action(
+		action,
+		0,
+		privateKey,
+		mo.None[common.Address](),
+		mo.None[time.Duration](),
+		true,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	expectedR := common.HexToHash(
+		"0x43592d7c6c7d816ece2e206f174be61249d651944932b13343f4d13f306ae602",
+	)
+	expectedS := common.HexToHash(
+		"0x71a926cb5c9a7c01c3359ec4c4c34c16ff8107d610994d4de0e6430e5cc0f4c9",
+	)
+	expectedV := byte(28)
 
 	if sig.R != expectedR {
 		t.Fatalf(

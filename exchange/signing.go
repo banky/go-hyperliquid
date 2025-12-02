@@ -2,8 +2,10 @@ package exchange
 
 import (
 	"bytes"
+	"crypto/ecdsa"
 	"encoding/binary"
 	"fmt"
+	"math/big"
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -18,52 +20,24 @@ import (
 // signL1Action signs an action using EIP-712 typed data signing
 // This implements the L1 action signing mechanism used by Hyperliquid
 func signL1Action[T any](
-	e *Exchange,
 	action T,
 	nonce uint64,
-) (signature, error) {
-	actionHash, err := hashAction(
-		action,
-		e.vaultAddress,
-		nonce,
-		e.expiresAfter,
-	)
-	if err != nil {
-		return signature{}, fmt.Errorf("failed to create action hash: %w", err)
-	}
-
-	phantomAgent := constructPhantomAgent(actionHash, e.rest.IsMainnet())
-	typedData := l1Payload(phantomAgent)
-
-	hash, _, err := apitypes.TypedDataAndHash(typedData)
-	if err != nil {
-		return signature{}, fmt.Errorf(
-			"failed generating hash for typed data: %w",
-			err,
-		)
-	}
-
-	return e.signHash(common.BytesToHash(hash))
-}
-
-// signL1ActionWithVault signs an L1 action with an optional vault address
-// override
-func (e *Exchange) signL1ActionWithVault(
-	action map[string]any,
-	nonce uint64,
+	privateKey *ecdsa.PrivateKey,
 	vaultAddress mo.Option[common.Address],
+	expiresAfter mo.Option[time.Duration],
+	isMainnet bool,
 ) (signature, error) {
 	actionHash, err := hashAction(
 		action,
 		vaultAddress,
 		nonce,
-		e.expiresAfter,
+		expiresAfter,
 	)
 	if err != nil {
 		return signature{}, fmt.Errorf("failed to create action hash: %w", err)
 	}
 
-	phantomAgent := constructPhantomAgent(actionHash, e.rest.IsMainnet())
+	phantomAgent := constructPhantomAgent(actionHash, isMainnet)
 	typedData := l1Payload(phantomAgent)
 
 	hash, _, err := apitypes.TypedDataAndHash(typedData)
@@ -74,31 +48,63 @@ func (e *Exchange) signL1ActionWithVault(
 		)
 	}
 
-	return e.signHash(common.BytesToHash(hash))
+	return signHash(common.BytesToHash(hash), privateKey)
+}
+
+// signL1ActionWithVault signs an L1 action with an optional vault address
+// override
+func signL1ActionWithVault(
+	action map[string]any,
+	nonce uint64,
+	privateKey *ecdsa.PrivateKey,
+	vaultAddress mo.Option[common.Address],
+	expiresAfter mo.Option[time.Duration],
+	isMainnet bool,
+) (signature, error) {
+	actionHash, err := hashAction(
+		action,
+		vaultAddress,
+		nonce,
+		expiresAfter,
+	)
+	if err != nil {
+		return signature{}, fmt.Errorf("failed to create action hash: %w", err)
+	}
+
+	phantomAgent := constructPhantomAgent(actionHash, isMainnet)
+	typedData := l1Payload(phantomAgent)
+
+	hash, _, err := apitypes.TypedDataAndHash(typedData)
+	if err != nil {
+		return signature{}, fmt.Errorf(
+			"failed generating hash for typed data: %w",
+			err,
+		)
+	}
+
+	return signHash(common.BytesToHash(hash), privateKey)
 }
 
 // signMultiSigAction signs a multi-signature action
-func (e *Exchange) signMultiSigAction(
+func signMultiSigAction(
 	action map[string]any,
-	vaultAddress *common.Address,
 	nonce uint64,
+	privateKey *ecdsa.PrivateKey,
+	vaultAddress mo.Option[common.Address],
+	expiresAfter mo.Option[time.Duration],
+	isMainnet bool,
 ) (signature, error) {
-	var vaultOpt mo.Option[common.Address]
-	if vaultAddress != nil {
-		vaultOpt = mo.Some(*vaultAddress)
-	}
-
 	actionHash, err := hashAction(
 		action,
-		vaultOpt,
+		vaultAddress,
 		nonce,
-		e.expiresAfter,
+		expiresAfter,
 	)
 	if err != nil {
 		return signature{}, fmt.Errorf("failed to create action hash: %w", err)
 	}
 
-	phantomAgent := constructPhantomAgent(actionHash, e.rest.IsMainnet())
+	phantomAgent := constructPhantomAgent(actionHash, isMainnet)
 	typedData := l1Payload(phantomAgent)
 
 	hash, _, err := apitypes.TypedDataAndHash(typedData)
@@ -109,21 +115,15 @@ func (e *Exchange) signMultiSigAction(
 		)
 	}
 
-	return e.signHash(common.BytesToHash(hash))
+	return signHash(common.BytesToHash(hash), privateKey)
 }
 
-func (e *Exchange) signUserSignedAction(
+func signUserSignedAction(
 	action map[string]any,
 	payloadTypes []apitypes.Type,
 	primaryType string,
+	privateKey *ecdsa.PrivateKey,
 ) (signature, error) {
-	var hyperliquidChain = "Mainnet"
-	if !e.rest.IsMainnet() {
-		hyperliquidChain = "Testnet"
-	}
-
-	action["hyperliquidChain"] = hyperliquidChain
-
 	typedData := userSignedPayload(
 		primaryType,
 		payloadTypes,
@@ -138,14 +138,22 @@ func (e *Exchange) signUserSignedAction(
 		)
 	}
 
-	return e.signHash(common.BytesToHash(hash))
+	return signHash(common.BytesToHash(hash), privateKey)
 }
 
-func (e *Exchange) signUsdTransferAction(
-	action map[string]any,
+func signUsdTransferAction(
+	action usdTransferAction,
+	privateKey *ecdsa.PrivateKey,
 ) (signature, error) {
-	return e.signUserSignedAction(
-		action,
+	actionMap := map[string]any{
+		"hyperliquidChain": action.HyperliquidChain,
+		"destination":      action.Destination,
+		"amount":           action.Amount,
+		"time":             big.NewInt(action.Time),
+	}
+
+	return signUserSignedAction(
+		actionMap,
 		[]apitypes.Type{
 			{Name: "hyperliquidChain", Type: "string"},
 			{Name: "destination", Type: "string"},
@@ -153,13 +161,15 @@ func (e *Exchange) signUsdTransferAction(
 			{Name: "time", Type: "uint64"},
 		},
 		"HyperliquidTransaction:UsdSend",
+		privateKey,
 	)
 }
 
-func (e *Exchange) signSpotTransferAction(
+func signSpotTransferAction(
 	action map[string]any,
+	privateKey *ecdsa.PrivateKey,
 ) (signature, error) {
-	return e.signUserSignedAction(
+	return signUserSignedAction(
 		action,
 		[]apitypes.Type{
 			{Name: "hyperliquidChain", Type: "string"},
@@ -169,13 +179,15 @@ func (e *Exchange) signSpotTransferAction(
 			{Name: "time", Type: "uint64"},
 		},
 		"HyperliquidTransaction:SpotSend",
+		privateKey,
 	)
 }
 
-func (e *Exchange) signWithdrawFromBridgeAction(
+func signWithdrawFromBridgeAction(
 	action map[string]any,
+	privateKey *ecdsa.PrivateKey,
 ) (signature, error) {
-	return e.signUserSignedAction(
+	return signUserSignedAction(
 		action,
 		[]apitypes.Type{
 			{Name: "hyperliquidChain", Type: "string"},
@@ -184,14 +196,23 @@ func (e *Exchange) signWithdrawFromBridgeAction(
 			{Name: "time", Type: "uint64"},
 		},
 		"HyperliquidTransaction:Withdraw",
+		privateKey,
 	)
 }
 
-func (e *Exchange) signUsdClassTransferAction(
-	action map[string]any,
+func signUsdClassTransferAction(
+	action usdClassTransferAction,
+	privateKey *ecdsa.PrivateKey,
 ) (signature, error) {
-	return e.signUserSignedAction(
-		action,
+	actionMap := map[string]any{
+		"hyperliquidChain": action.HyperliquidChain,
+		"amount":           action.Amount,
+		"toPerp":           action.ToPerp,
+		"nonce":            big.NewInt(action.Nonce),
+	}
+
+	return signUserSignedAction(
+		actionMap,
 		[]apitypes.Type{
 			{Name: "hyperliquidChain", Type: "string"},
 			{Name: "amount", Type: "string"},
@@ -199,14 +220,27 @@ func (e *Exchange) signUsdClassTransferAction(
 			{Name: "nonce", Type: "uint64"},
 		},
 		"HyperliquidTransaction:UsdClassTransfer",
+		privateKey,
 	)
 }
 
-func (e *Exchange) signSendAssetAction(
-	action map[string]any,
+func signSendAssetAction(
+	action sendAssetAction,
+	privateKey *ecdsa.PrivateKey,
 ) (signature, error) {
-	return e.signUserSignedAction(
-		action,
+	actionMap := map[string]any{
+		"hyperliquidChain": action.HyperliquidChain,
+		"destination":      action.Destination,
+		"sourceDex":        action.SourceDex,
+		"destinationDex":   action.DestinationDex,
+		"token":            action.Token,
+		"amount":           action.Amount,
+		"fromSubAccount":   action.FromSubAccount,
+		"nonce":            big.NewInt(action.Nonce),
+	}
+
+	return signUserSignedAction(
+		actionMap,
 		[]apitypes.Type{
 			{Name: "hyperliquidChain", Type: "string"},
 			{Name: "destination", Type: "string"},
@@ -218,13 +252,15 @@ func (e *Exchange) signSendAssetAction(
 			{Name: "nonce", Type: "uint64"},
 		},
 		"HyperliquidTransaction:SendAsset",
+		privateKey,
 	)
 }
 
-func (e *Exchange) signUserDexAbstractionAction(
+func signUserDexAbstractionAction(
 	action map[string]any,
+	privateKey *ecdsa.PrivateKey,
 ) (signature, error) {
-	return e.signUserSignedAction(
+	return signUserSignedAction(
 		action,
 		[]apitypes.Type{
 			{Name: "hyperliquidChain", Type: "string"},
@@ -233,13 +269,15 @@ func (e *Exchange) signUserDexAbstractionAction(
 			{Name: "nonce", Type: "uint64"},
 		},
 		"HyperliquidTransaction:UserDexAbstraction",
+		privateKey,
 	)
 }
 
-func (e *Exchange) signConvertToMultiSigUserAction(
+func signConvertToMultiSigUserAction(
 	action map[string]any,
+	privateKey *ecdsa.PrivateKey,
 ) (signature, error) {
-	return e.signUserSignedAction(
+	return signUserSignedAction(
 		action,
 		[]apitypes.Type{
 			{Name: "hyperliquidChain", Type: "string"},
@@ -247,13 +285,15 @@ func (e *Exchange) signConvertToMultiSigUserAction(
 			{Name: "nonce", Type: "uint64"},
 		},
 		"HyperliquidTransaction:ConvertToMultiSigUser",
+		privateKey,
 	)
 }
 
-func (e *Exchange) signTokenDelegateAction(
+func signTokenDelegateAction(
 	action map[string]any,
+	privateKey *ecdsa.PrivateKey,
 ) (signature, error) {
-	return e.signUserSignedAction(
+	return signUserSignedAction(
 		action,
 		[]apitypes.Type{
 			{Name: "hyperliquidChain", Type: "string"},
@@ -263,13 +303,15 @@ func (e *Exchange) signTokenDelegateAction(
 			{Name: "nonce", Type: "uint64"},
 		},
 		"HyperliquidTransaction:TokenDelegate",
+		privateKey,
 	)
 }
 
-func (e *Exchange) signAgentAction(
+func signAgentAction(
 	action map[string]any,
+	privateKey *ecdsa.PrivateKey,
 ) (signature, error) {
-	return e.signUserSignedAction(
+	return signUserSignedAction(
 		action,
 		[]apitypes.Type{
 			{Name: "hyperliquidChain", Type: "string"},
@@ -278,13 +320,15 @@ func (e *Exchange) signAgentAction(
 			{Name: "nonce", Type: "uint64"},
 		},
 		"HyperliquidTransaction:ApproveAgent",
+		privateKey,
 	)
 }
 
-func (e *Exchange) signApproveBuilderFeeAction(
+func signApproveBuilderFeeAction(
 	action map[string]any,
+	privateKey *ecdsa.PrivateKey,
 ) (signature, error) {
-	return e.signUserSignedAction(
+	return signUserSignedAction(
 		action,
 		[]apitypes.Type{
 			{Name: "hyperliquidChain", Type: "string"},
@@ -293,6 +337,7 @@ func (e *Exchange) signApproveBuilderFeeAction(
 			{Name: "nonce", Type: "uint64"},
 		},
 		"HyperliquidTransaction:ApproveBuilderFee",
+		privateKey,
 	)
 }
 
@@ -342,11 +387,14 @@ func hashAction[T any](
 
 // signHash signs a hash using the private key and returns
 // a signature
-func (e *Exchange) signHash(hash common.Hash) (signature, error) {
+func signHash(
+	hash common.Hash,
+	privateKey *ecdsa.PrivateKey,
+) (signature, error) {
 	var out signature
 
 	// Sign the hash
-	sig, err := crypto.Sign(hash.Bytes(), e.privateKey)
+	sig, err := crypto.Sign(hash.Bytes(), privateKey)
 	if err != nil {
 		return out, fmt.Errorf("failed to sign: %w", err)
 	}

@@ -128,6 +128,10 @@ func (crc *cassetteRestClient) IsMainnet() bool {
 	return true
 }
 
+func (crc *cassetteRestClient) NetworkName() string {
+	return "Mainnet"
+}
+
 // ===== Test Helpers =====
 
 // loadCassettes helper to load cassettes from files

@@ -5,12 +5,14 @@ import (
 	"crypto/ecdsa"
 	"fmt"
 	"math/big"
+	"math/rand"
 	"os"
 	"testing"
 	"time"
 
 	"github.com/banky/go-hyperliquid/constants"
 	"github.com/banky/go-hyperliquid/types"
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/joho/godotenv"
 	"github.com/maxatome/go-testdeep/helpers/tdsuite"
@@ -55,6 +57,7 @@ func (s *ExchangeIntegrationSuite) Setup(t *td.T) error {
 // Test entry point for the suite.
 // By default, the whole suite is skipped unless RUN_EXCHANGE_INTEGRATION=1.
 func TestExchangeIntegrationSuite(t *testing.T) {
+	_ = godotenv.Load("../.env")
 	if os.Getenv("SKIP_INTEGRATION") == "true" {
 		fmt.Println("Skipping", os.Getenv("RUN_EXCHANGE_INTEGRATION"))
 		t.Skip(
@@ -290,11 +293,64 @@ func (s *ExchangeIntegrationSuite) TestCreateSubAccount(
 
 	response, err := s.exchange.CreateSubAccount(
 		ctx,
-		"TestAccount1",
+		s.getTestAccountName(),
 	)
 	require.CmpNoError(err)
 
 	fmt.Printf("response:%+v\n", response)
+}
+
+func (s *ExchangeIntegrationSuite) TestSubAccountTransfer(
+	assert, require *td.T,
+) {
+	ctx := context.Background()
+
+	response, err := s.exchange.CreateSubAccount(
+		ctx,
+		s.getTestAccountName(),
+	)
+	require.CmpNoError(err)
+
+	fmt.Printf("response:%+v\n", response)
+
+	account := response.Data
+
+	response2, err := s.exchange.SubAccountTransfer(
+		ctx,
+		account,
+		true,
+		10_000,
+	)
+	require.CmpNoError(err)
+
+	fmt.Printf("response:%+v\n", response2)
+}
+
+func (s *ExchangeIntegrationSuite) TestSubAccountSpotTransfer(
+	assert, require *td.T,
+) {
+	ctx := context.Background()
+
+	response, err := s.exchange.CreateSubAccount(
+		ctx,
+		s.getTestAccountName(),
+	)
+	require.CmpNoError(err)
+
+	fmt.Printf("response:%+v\n", response)
+
+	account := response.Data
+
+	response2, err := s.exchange.SubAccountSpotTransfer(
+		ctx,
+		account,
+		true,
+		"HYPE:0x7317beb7cceed72ef0b346074cc8e7ab",
+		1.23,
+	)
+	require.CmpNoError(err)
+
+	fmt.Printf("response:%+v\n", response2)
 }
 
 func (s *ExchangeIntegrationSuite) TestUsdClassTransfer(
@@ -310,4 +366,68 @@ func (s *ExchangeIntegrationSuite) TestUsdClassTransfer(
 	require.CmpNoError(err)
 
 	fmt.Printf("response:%+v\n", response)
+}
+
+func (s *ExchangeIntegrationSuite) TestSendAsset(
+	assert, require *td.T,
+) {
+	ctx := context.Background()
+
+	response, err := s.exchange.SendAsset(
+		ctx,
+		common.Address{},
+		"",
+		"test",
+		"USDC",
+		0.01,
+	)
+	require.CmpNoError(err)
+
+	fmt.Printf("response:%+v\n", response)
+}
+
+func (s *ExchangeIntegrationSuite) TestVaultUsdTransfer(
+	assert, require *td.T,
+) {
+	ctx := context.Background()
+
+	vaultAddress := common.HexToAddress(
+		"0xa15099a30bbf2e68942d6f4c43d70d04faeab0a0",
+	)
+
+	response, err := s.exchange.VaultUsdTransfer(
+		ctx,
+		vaultAddress,
+		true,
+		6_000_000,
+	)
+	require.CmpNoError(err)
+
+	fmt.Printf("response:%+v\n", response)
+}
+
+func (s *ExchangeIntegrationSuite) TestUsdTransfer(
+	assert, require *td.T,
+) {
+	ctx := context.Background()
+
+	destination := common.HexToAddress(
+		"0x7851f494001129fcf7adEB85406eE710Dbdb9446",
+	)
+
+	response, err := s.exchange.UsdTransfer(
+		ctx,
+		2.00,
+		destination,
+	)
+	require.CmpNoError(err)
+
+	fmt.Printf("response:%+v\n", response)
+}
+
+func (s *ExchangeIntegrationSuite) getTestAccountName() string {
+	n := rand.Intn(10000) + 1
+	account := fmt.Sprintf("TestAccount%d", n)
+
+	return account
 }

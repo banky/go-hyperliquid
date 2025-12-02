@@ -5,8 +5,8 @@ import (
 	"crypto/ecdsa"
 	"fmt"
 	"math"
-	"math/big"
 	"slices"
+	"strings"
 	"sync/atomic"
 	"time"
 
@@ -190,7 +190,14 @@ func (e *Exchange) bulkOrders(
 	action := ordersToAction(orderWires, builder, grouping)
 
 	timestamp := e.nextNonce()
-	sig, err := signL1Action(e, action, uint64(timestamp))
+	sig, err := signL1Action(
+		action,
+		uint64(timestamp),
+		e.privateKey,
+		e.vaultAddress,
+		e.expiresAfter,
+		e.rest.IsMainnet(),
+	)
 	if err != nil {
 		return BulkOrdersResponse{}, fmt.Errorf(
 			"failed to sign action: %w",
@@ -198,7 +205,7 @@ func (e *Exchange) bulkOrders(
 		)
 	}
 
-	return post[BulkOrdersResponse](ctx, e, action, action.Type, timestamp, sig)
+	return post[BulkOrdersResponse](ctx, e, action, timestamp, sig)
 }
 
 // ModifyOrder modifies a single order with Order ID
@@ -279,7 +286,14 @@ func (e *Exchange) BulkModifyOrders(
 	action := modifiesToAction(modifyWires)
 
 	timestamp := e.nextNonce()
-	sig, err := signL1Action(e, action, uint64(timestamp))
+	sig, err := signL1Action(
+		action,
+		uint64(timestamp),
+		e.privateKey,
+		e.vaultAddress,
+		e.expiresAfter,
+		e.rest.IsMainnet(),
+	)
 	if err != nil {
 		return BulkOrdersResponse{}, fmt.Errorf(
 			"failed to sign action: %w",
@@ -287,7 +301,7 @@ func (e *Exchange) BulkModifyOrders(
 		)
 	}
 
-	return post[BulkOrdersResponse](ctx, e, action, action.Type, timestamp, sig)
+	return post[BulkOrdersResponse](ctx, e, action, timestamp, sig)
 }
 
 // MarketOpen opens a market position
@@ -463,7 +477,14 @@ func (e *Exchange) BulkCancel(
 	action := cancelsToAction(cancelWires)
 
 	timestamp := e.nextNonce()
-	sig, err := signL1Action(e, action, uint64(timestamp))
+	sig, err := signL1Action(
+		action,
+		uint64(timestamp),
+		e.privateKey,
+		e.vaultAddress,
+		e.expiresAfter,
+		e.rest.IsMainnet(),
+	)
 	if err != nil {
 		return BulkCancelResponse{}, fmt.Errorf(
 			"failed to sign action: %w",
@@ -471,7 +492,7 @@ func (e *Exchange) BulkCancel(
 		)
 	}
 
-	return post[BulkCancelResponse](ctx, e, action, action.Type, timestamp, sig)
+	return post[BulkCancelResponse](ctx, e, action, timestamp, sig)
 }
 
 // CancelByCloid cancels an order by its client order ID.
@@ -516,7 +537,15 @@ func (e *Exchange) BulkCancelByCloid(
 	action := cancelsByCloidToAction(cancelWires)
 
 	timestamp := e.nextNonce()
-	sig, err := signL1Action(e, action, uint64(timestamp))
+	sig, err := signL1Action(
+		action,
+		uint64(timestamp),
+		e.privateKey,
+		e.vaultAddress,
+		e.expiresAfter,
+		e.rest.IsMainnet(),
+	)
+
 	if err != nil {
 		return BulkCancelResponse{}, fmt.Errorf(
 			"failed to sign action: %w",
@@ -528,7 +557,6 @@ func (e *Exchange) BulkCancelByCloid(
 		ctx,
 		e,
 		action,
-		action.Type,
 		timestamp,
 		sig,
 	)
@@ -549,12 +577,20 @@ func (e *Exchange) ScheduleCancel(
 	action := scheduleCancelToAction(request)
 
 	timestamp := e.nextNonce()
-	sig, err := signL1Action(e, action, uint64(timestamp))
+	sig, err := signL1Action(
+		action,
+		uint64(timestamp),
+		e.privateKey,
+		e.vaultAddress,
+		e.expiresAfter,
+		e.rest.IsMainnet(),
+	)
+
 	if err != nil {
 		return CancelResponse{}, fmt.Errorf("failed to sign action: %w", err)
 	}
 
-	return post[CancelResponse](ctx, e, action, action.Type, timestamp, sig)
+	return post[CancelResponse](ctx, e, action, timestamp, sig)
 }
 
 // UpdateLeverage updates the leverage for an asset
@@ -571,12 +607,20 @@ func (e *Exchange) UpdateLeverage(
 	action := updateLeverageToAction(request, assetId)
 
 	timestamp := e.nextNonce()
-	sig, err := signL1Action(e, action, uint64(timestamp))
+	sig, err := signL1Action(
+		action,
+		uint64(timestamp),
+		e.privateKey,
+		e.vaultAddress,
+		e.expiresAfter,
+		e.rest.IsMainnet(),
+	)
+
 	if err != nil {
 		return UpdateResponse{}, fmt.Errorf("failed to sign action: %w", err)
 	}
 
-	return post[UpdateResponse](ctx, e, action, action.Type, timestamp, sig)
+	return post[UpdateResponse](ctx, e, action, timestamp, sig)
 }
 
 // UpdateIsolatedMargin updates the isolated margin for an asset
@@ -603,12 +647,20 @@ func (e *Exchange) UpdateIsolatedMargin(
 	action := updateIsolatedMarginToAction(asset, intAmount)
 
 	timestamp := e.nextNonce()
-	sig, err := signL1Action(e, action, uint64(timestamp))
+	sig, err := signL1Action(
+		action,
+		uint64(timestamp),
+		e.privateKey,
+		e.vaultAddress,
+		e.expiresAfter,
+		e.rest.IsMainnet(),
+	)
+
 	if err != nil {
 		return UpdateResponse{}, fmt.Errorf("failed to sign action: %w", err)
 	}
 
-	return post[UpdateResponse](ctx, e, action, action.Type, timestamp, sig)
+	return post[UpdateResponse](ctx, e, action, timestamp, sig)
 }
 
 // SetReferrer sets the referrer code
@@ -622,7 +674,15 @@ func (e *Exchange) SetReferrer(
 	}
 
 	timestamp := e.nextNonce()
-	sig, err := signL1Action(e, action, uint64(timestamp))
+	sig, err := signL1Action(
+		action,
+		uint64(timestamp),
+		e.privateKey,
+		e.vaultAddress,
+		e.expiresAfter,
+		e.rest.IsMainnet(),
+	)
+
 	if err != nil {
 		return SetReferrerResponse{}, fmt.Errorf(
 			"failed to sign action: %w",
@@ -634,7 +694,6 @@ func (e *Exchange) SetReferrer(
 		ctx,
 		e,
 		action,
-		action.Type,
 		timestamp,
 		sig,
 	)
@@ -647,7 +706,15 @@ func (e *Exchange) CreateSubAccount(
 	action := createSubAccountToAction(name)
 
 	timestamp := e.nextNonce()
-	sig, err := signL1Action(e, action, uint64(timestamp))
+	sig, err := signL1Action(
+		action,
+		uint64(timestamp),
+		e.privateKey,
+		e.vaultAddress,
+		e.expiresAfter,
+		e.rest.IsMainnet(),
+	)
+
 	if err != nil {
 		return CreateSubAccountResponse{}, fmt.Errorf(
 			"failed to sign action: %w",
@@ -659,7 +726,6 @@ func (e *Exchange) CreateSubAccount(
 		ctx,
 		e,
 		action,
-		action.Type,
 		timestamp,
 		sig,
 	)
@@ -679,13 +745,21 @@ func (e *Exchange) UsdClassTransfer(
 		)
 	}
 
-	action := map[string]any{
-		"amount": strAmount,
-		"toPerp": toPerp,
-		"nonce":  big.NewInt(timestamp),
+	if v, ok := e.vaultAddress.Get(); ok {
+		strAmount += fmt.Sprintf(" subaccount:%s", v.String())
 	}
 
-	sig, err := e.signUsdClassTransferAction(action)
+	action := usdClassTransferAction{
+		Type:             "usdClassTransfer",
+		Amount:           strAmount,
+		ToPerp:           toPerp,
+		Nonce:            timestamp,
+		HyperliquidChain: e.rest.NetworkName(),
+		SignatureChainId: getSignatureChainId(),
+	}
+
+	sig, err := signUsdClassTransferAction(action, e.privateKey)
+
 	if err != nil {
 		return UpdateResponse{}, fmt.Errorf("failed to sign action: %w", err)
 	}
@@ -694,162 +768,194 @@ func (e *Exchange) UsdClassTransfer(
 		ctx,
 		e,
 		action,
-		"usdClassTransfer",
 		timestamp,
 		sig,
 	)
 }
 
-// // SendAsset is used to transfer tokens between different perp
-// // DEXs, spot balance, users, and/or sub-accounts. Use "" to specify the
+// SendAsset is used to transfer tokens between different perp
+// DEXs, spot balance, users, and/or sub-accounts. Use "" to specify the
 // default
-// // USDC perp DEX and "spot" to specify spot. Only the collateral token can be
-// // transferred to or from a perp DEX.
-// func (e *Exchange) SendAsset(
-// 	ctx context.Context,
-// 	destination string,
-// 	sourceDex string,
-// 	destinationDex string,
-// 	token string,
-// 	amount float64,
-// ) (Response, error) {
-//  timestamp := e.nextNonce()
-// 	strAmount, err := floatToWire(amount)
-// 	if err != nil {
-// 		return Response{}, fmt.Errorf(
-// 			"failed to convert amount to wire format: %w",
-// 			err,
-// 		)
-// 	}
+// USDC perp DEX and "spot" to specify spot. Only the collateral token can be
+// transferred to or from a perp DEX.
+func (e *Exchange) SendAsset(
+	ctx context.Context,
+	destination common.Address,
+	sourceDex string,
+	destinationDex string,
+	token string,
+	amount float64,
+) (UpdateResponse, error) {
+	timestamp := e.nextNonce()
 
-// 	action := map[string]any{
-// 		"type":           "sendAsset",
-// 		"destination":    destination,
-// 		"sourceDex":      sourceDex,
-// 		"destinationDex": destinationDex,
-// 		"token":          token,
-// 		"amount":         strAmount,
-// 		"nonce":          timestamp,
-// 	}
+	amountStr, err := utils.FloatToWire(amount)
+	if err != nil {
+		return UpdateResponse{}, fmt.Errorf(
+			"failed to convert amount: %w",
+			err,
+		)
+	}
 
-// 	if v, ok := e.vaultAddress.Get(); ok {
-// 		action["fromSubAccount"] = v.String()
-// 	} else {
-// 		action["fromSubAccount"] = ""
-// 	}
+	action := sendAssetAction{
+		Type:             "sendAsset",
+		Destination:      destination.Hex(),
+		SourceDex:        sourceDex,
+		DestinationDex:   destinationDex,
+		Token:            token,
+		Amount:           amountStr,
+		Nonce:            timestamp,
+		SignatureChainId: getSignatureChainId(),
+		HyperliquidChain: e.rest.NetworkName(),
+	}
 
-// 	sig, err := e.signSendAssetAction(action)
-// 	if err != nil {
-// 		return Response{}, fmt.Errorf("failed to sign action: %w", err)
-// 	}
+	if v, ok := e.vaultAddress.Get(); ok {
+		vaultHex := v.Hex()
+		action.FromSubAccount = vaultHex
+	} else {
+		action.FromSubAccount = ""
+	}
 
-// 	return e.post(ctx, action, timestamp, sig)
-// }
+	sig, err := signSendAssetAction(action, e.privateKey)
+	if err != nil {
+		return UpdateResponse{}, fmt.Errorf("failed to sign action: %w", err)
+	}
 
-// // SubAccountTransfer transfers assets between sub-accounts.
-// func (e *Exchange) SubAccountTransfer(
-// 	ctx context.Context,
-// 	subAccountUser common.Address,
-// 	isDeposit bool,
-// 	usd int64,
-// ) (Response, error) {
-//  timestamp := e.nextNonce()
-// 	action := map[string]any{
-// 		"type":           "subAccountTransfer",
-// 		"subAccountUser": subAccountUser,
-// 		"isDeposit":      isDeposit,
-// 		"usd":            usd,
-// 	}
-// 	sig, err := e.signL1Action(action, uint64(timestamp))
-// 	if err != nil {
-// 		return Response{}, fmt.Errorf("failed to sign action: %w", err)
-// 	}
+	return post[UpdateResponse](ctx, e, action, timestamp, sig)
+}
 
-// 	return e.post(ctx, action, timestamp, sig)
-// }
+// SubAccountTransfer transfers assets between sub-accounts.
+func (e *Exchange) SubAccountTransfer(
+	ctx context.Context,
+	subAccount common.Address,
+	isDeposit bool,
+	usd int64,
+) (UpdateResponse, error) {
+	timestamp := e.nextNonce()
 
-// // SubAccountSpotTransfer transfers spot assets between sub-accounts.
-// func (e *Exchange) SubAccountSpotTransfer(
-// 	ctx context.Context,
-// 	subAccountUser common.Address,
-// 	isDeposit bool,
-// 	token string,
-// 	amount float64,
-// ) (Response, error) {
-//  timestamp := e.nextNonce()
-// 	strAmount, err := floatToWire(amount)
-// 	if err != nil {
-// 		return Response{}, fmt.Errorf(
-// 			"failed to convert amount to wire format: %w",
-// 			err,
-// 		)
-// 	}
+	action := subAccountTransferAction{
+		Type:           "subAccountTransfer",
+		SubAccountUser: strings.ToLower(subAccount.Hex()),
+		IsDeposit:      isDeposit,
+		Usd:            usd,
+	}
 
-// 	action := map[string]any{
-// 		"type":           "subAccountSpotTransfer",
-// 		"subAccountUser": subAccountUser,
-// 		"isDeposit":      isDeposit,
-// 		"token":          token,
-// 		"amount":         strAmount,
-// 	}
-// 	sig, err := e.signL1Action(action, uint64(timestamp))
-// 	if err != nil {
-// 		return Response{}, fmt.Errorf("failed to sign action: %w", err)
-// 	}
+	sig, err := signL1Action(
+		action,
+		uint64(timestamp),
+		e.privateKey,
+		mo.None[common.Address](),
+		e.expiresAfter,
+		e.rest.IsMainnet(),
+	)
+	if err != nil {
+		return UpdateResponse{}, fmt.Errorf("failed to sign action: %w", err)
+	}
 
-// 	return e.post(ctx, action, timestamp, sig)
-// }
+	return post[UpdateResponse](ctx, e, action, timestamp, sig)
+}
 
-// // VaultUsdTransfer transfers USD to or from a vault.
-// func (e *Exchange) VaultUsdTransfer(
-// 	ctx context.Context,
-// 	vaultAddress common.Address,
-// 	isDeposit bool,
-// 	usd int64,
-// ) (Response, error) {
-//  timestamp := e.nextNonce()
-// 	action := map[string]any{
-// 		"type":         "vaultTransfer",
-// 		"vaultAddress": vaultAddress,
-// 		"isDeposit":    isDeposit,
-// 		"usd":          usd,
-// 	}
-// 	sig, err := e.signL1Action(action, uint64(timestamp))
-// 	if err != nil {
-// 		return Response{}, fmt.Errorf("failed to sign action: %w", err)
-// 	}
+// SubAccountSpotTransfer transfers spot assets between sub-accounts.
+func (e *Exchange) SubAccountSpotTransfer(
+	ctx context.Context,
+	subAccountUser common.Address,
+	isDeposit bool,
+	token string,
+	amount float64,
+) (UpdateResponse, error) {
+	timestamp := e.nextNonce()
+	strAmount, err := utils.FloatToWire(amount)
+	if err != nil {
+		return UpdateResponse{}, fmt.Errorf(
+			"failed to convert amount to wire format: %w",
+			err,
+		)
+	}
 
-// 	return e.post(ctx, action, timestamp, sig)
-// }
+	action := subAccountSpotTransferAction{
+		Type:           "subAccountSpotTransfer",
+		SubAccountUser: strings.ToLower(subAccountUser.Hex()),
+		IsDeposit:      isDeposit,
+		Token:          token,
+		Amount:         strAmount,
+	}
 
-// // UsdTransfer transfers USD to a destination address.
-// func (e *Exchange) UsdTransfer(
-// 	ctx context.Context,
-// 	amount float64,
-// 	destination string,
-// ) (Response, error) {
-//  timestamp := e.nextNonce()
-// 	strAmount, err := floatToWire(amount)
-// 	if err != nil {
-// 		return Response{}, fmt.Errorf(
-// 			"failed to convert amount to wire format: %w",
-// 			err,
-// 		)
-// 	}
+	sig, err := signL1Action(
+		action,
+		uint64(timestamp),
+		e.privateKey,
+		mo.None[common.Address](),
+		e.expiresAfter,
+		e.rest.IsMainnet(),
+	)
+	if err != nil {
+		return UpdateResponse{}, fmt.Errorf("failed to sign action: %w", err)
+	}
 
-// 	action := map[string]any{
-// 		"destination": destination,
-// 		"amount":      strAmount,
-// 		"time":        timestamp,
-// 		"type":        "usdSend",
-// 	}
-// 	sig, err := e.signUsdTransferAction(action)
-// 	if err != nil {
-// 		return Response{}, fmt.Errorf("failed to sign action: %w", err)
-// 	}
+	return post[UpdateResponse](ctx, e, action, timestamp, sig)
+}
 
-// 	return e.post(ctx, action, timestamp, sig)
-// }
+// VaultUsdTransfer transfers USD to or from a vault.
+func (e *Exchange) VaultUsdTransfer(
+	ctx context.Context,
+	vaultAddress common.Address,
+	isDeposit bool,
+	usd int64,
+) (UpdateResponse, error) {
+	timestamp := e.nextNonce()
+
+	action := vaultTransferAction{
+		Type:         "vaultTransfer",
+		VaultAddress: strings.ToLower(vaultAddress.Hex()),
+		IsDeposit:    isDeposit,
+		Usd:          usd,
+	}
+
+	sig, err := signL1Action(
+		action,
+		uint64(timestamp),
+		e.privateKey,
+		mo.None[common.Address](),
+		e.expiresAfter,
+		e.rest.IsMainnet(),
+	)
+	if err != nil {
+		return UpdateResponse{}, fmt.Errorf("failed to sign action: %w", err)
+	}
+
+	return post[UpdateResponse](ctx, e, action, timestamp, sig)
+}
+
+// UsdTransfer transfers USD to a destination address.
+func (e *Exchange) UsdTransfer(
+	ctx context.Context,
+	amount float64,
+	destination common.Address,
+) (UpdateResponse, error) {
+	timestamp := e.nextNonce()
+	strAmount, err := utils.FloatToWire(amount)
+	if err != nil {
+		return UpdateResponse{}, fmt.Errorf(
+			"failed to convert amount to wire format: %w",
+			err,
+		)
+	}
+
+	action := usdTransferAction{
+		Type:             "usdSend",
+		Amount:           strAmount,
+		Destination:      strings.ToLower(destination.Hex()),
+		Time:             timestamp,
+		HyperliquidChain: e.rest.NetworkName(),
+		SignatureChainId: getSignatureChainId(),
+	}
+
+	sig, err := signUsdTransferAction(action, e.privateKey)
+	if err != nil {
+		return UpdateResponse{}, fmt.Errorf("failed to sign action: %w", err)
+	}
+
+	return post[UpdateResponse](ctx, e, action, timestamp, sig)
+}
 
 // // SpotTransfer transfers spot tokens to a destination address.
 // func (e *Exchange) SpotTransfer(
@@ -1630,11 +1736,10 @@ func sortStringMap(m map[string]string) [][]string {
 	return result
 }
 
-func post[T any, U any](
+func post[T any, U action](
 	ctx context.Context,
 	exchange *Exchange,
 	action U,
-	actionType string,
 	timestamp int64,
 	sig signature,
 ) (T, error) {
@@ -1644,6 +1749,7 @@ func post[T any, U any](
 		"nonce":     timestamp,
 	}
 
+	actionType := action.getType()
 	if actionType == "usdClassTransfer" || actionType == "sendAsset" {
 		payload["vaultAddress"] = nil
 	} else if v, ok := exchange.vaultAddress.Get(); ok {
@@ -1768,4 +1874,8 @@ func (e *Exchange) nextNonce() int64 {
 			return curr
 		}
 	}
+}
+
+func getSignatureChainId() string {
+	return fmt.Sprintf("0x%x", constants.SIGNATURE_CHAIN_ID)
 }

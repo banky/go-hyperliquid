@@ -13,7 +13,7 @@ type ClientError struct {
 	Code       string
 	Msg        string
 	Headers    http.Header
-	Data       interface{}
+	Data       any
 }
 
 func (e *ClientError) Error() string {

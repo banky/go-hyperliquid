@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/banky/go-hyperliquid/types"
+	"github.com/ethereum/go-ethereum/common"
 )
 
 // response is a generic top-level response that can hold any "ok" payload type.
@@ -213,5 +214,6 @@ type SetReferrerResponse struct {
 }
 
 type CreateSubAccountResponse struct {
-	Status string `json:"status"`
+	Type string         `json:"type"`
+	Data common.Address `json:"data"`
 }

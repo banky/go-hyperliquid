@@ -735,7 +735,96 @@ func createSubAccountToAction(n string) createSubAccountAction {
 }
 
 type usdClassTransferAction struct {
-	Type string `json:"type"`
+	Type             string `json:"type"`
+	Amount           string `json:"amount"`
+	ToPerp           bool   `json:"toPerp"`
+	Nonce            int64  `json:"nonce"`
+	SignatureChainId string `json:"signatureChainId"`
+	HyperliquidChain string `json:"hyperliquidChain"`
+}
+
+func (u usdClassTransferAction) getType() string {
+	return u.Type
+}
+
+type usdTransferAction struct {
+	Type             string `json:"type"`
+	Amount           string `json:"amount"`
+	Destination      string `json:"destination"`
+	Time             int64  `json:"time"`
+	SignatureChainId string `json:"signatureChainId"`
+	HyperliquidChain string `json:"hyperliquidChain"`
+}
+
+func (u usdTransferAction) getType() string {
+	return u.Type
+}
+
+// ============================================================================
+// Send Asset Request
+// ============================================================================
+
+type sendAssetAction struct {
+	Type             string `json:"type"`
+	Destination      string `json:"destination"`
+	SourceDex        string `json:"sourceDex"`
+	DestinationDex   string `json:"destinationDex"`
+	Token            string `json:"token"`
+	Amount           string `json:"amount"`
+	FromSubAccount   string `json:"fromSubAccount"`
+	Nonce            int64  `json:"nonce"`
+	SignatureChainId string `json:"signatureChainId"`
+	HyperliquidChain string `json:"hyperliquidChain"`
+}
+
+func (s sendAssetAction) getType() string {
+	return s.Type
+}
+
+// ============================================================================
+// Sub Account Transfer Request
+// ============================================================================
+
+type subAccountTransferAction struct {
+	Type           string `json:"type"`
+	SubAccountUser string `json:"subAccountUser"`
+	IsDeposit      bool   `json:"isDeposit"`
+	Usd            int64  `json:"usd"`
+}
+
+func (s subAccountTransferAction) getType() string {
+	return s.Type
+}
+
+// ============================================================================
+// Sub Account Spot Transfer Action
+// ============================================================================
+
+type subAccountSpotTransferAction struct {
+	Type           string `json:"type"`
+	SubAccountUser string `json:"subAccountUser"`
+	IsDeposit      bool   `json:"isDeposit"`
+	Token          string `json:"token"`
+	Amount         string `json:"amount"`
+}
+
+func (s subAccountSpotTransferAction) getType() string {
+	return s.Type
+}
+
+// ============================================================================
+// Vault Transfer Action
+// ============================================================================
+
+type vaultTransferAction struct {
+	Type         string `json:"type"`
+	VaultAddress string `json:"vaultAddress"`
+	IsDeposit    bool   `json:"isDeposit"`
+	Usd          int64  `json:"usd"`
+}
+
+func (v vaultTransferAction) getType() string {
+	return v.Type
 }
 
 // ============================================================================
