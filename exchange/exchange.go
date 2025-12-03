@@ -116,6 +116,41 @@ func (e *Exchange) ClearExpiresAfter() {
 	e.expiresAfter = mo.None[time.Duration]()
 }
 
+func SignMultisigPayload[T request](
+	ctx context.Context,
+	e *Exchange,
+	req T,
+	privateKey *ecdsa.PrivateKey,
+	multisigUser common.Address,
+	timestamp int64,
+) (signature, error) {
+	action, err := req.toAction(ctx, e, timestamp)
+	if err != nil {
+		return signature{}, fmt.Errorf(
+			"failed to convert request to action: %w",
+			err,
+		)
+	}
+
+	outerSigner := crypto.PubkeyToAddress(e.privateKey.PublicKey)
+
+	sig, err := signMultisigL1ActionPayload(
+		action,
+		uint64(timestamp),
+		privateKey,
+		e.vaultAddress,
+		e.expiresAfter,
+		e.rest.IsMainnet(),
+		multisigUser,
+		outerSigner,
+	)
+	if err != nil {
+		return signature{}, fmt.Errorf("failed to sign action: %w", err)
+	}
+
+	return sig, nil
+}
+
 // DEFAULT_SLIPPAGE is the default max slippage for market orders (5%)
 const DEFAULT_SLIPPAGE = 0.05
 
@@ -185,14 +220,7 @@ func (e *Exchange) bulkOrders(
 	action := ordersToAction(orderWires, builder, grouping)
 
 	timestamp := e.nextNonce()
-	sig, err := signL1Action(
-		action,
-		uint64(timestamp),
-		e.privateKey,
-		e.vaultAddress,
-		e.expiresAfter,
-		e.rest.IsMainnet(),
-	)
+	sig, err := action.sign(e.privateKey, timestamp, e)
 	if err != nil {
 		return BulkOrdersResponse{}, fmt.Errorf(
 			"failed to sign action: %w",
@@ -281,14 +309,7 @@ func (e *Exchange) BulkModifyOrders(
 	action := modifiesToAction(modifyWires)
 
 	timestamp := e.nextNonce()
-	sig, err := signL1Action(
-		action,
-		uint64(timestamp),
-		e.privateKey,
-		e.vaultAddress,
-		e.expiresAfter,
-		e.rest.IsMainnet(),
-	)
+	sig, err := action.sign(e.privateKey, timestamp, e)
 	if err != nil {
 		return BulkOrdersResponse{}, fmt.Errorf(
 			"failed to sign action: %w",
@@ -472,14 +493,7 @@ func (e *Exchange) BulkCancel(
 	action := cancelsToAction(cancelWires)
 
 	timestamp := e.nextNonce()
-	sig, err := signL1Action(
-		action,
-		uint64(timestamp),
-		e.privateKey,
-		e.vaultAddress,
-		e.expiresAfter,
-		e.rest.IsMainnet(),
-	)
+	sig, err := action.sign(e.privateKey, timestamp, e)
 	if err != nil {
 		return BulkCancelResponse{}, fmt.Errorf(
 			"failed to sign action: %w",
@@ -532,14 +546,7 @@ func (e *Exchange) BulkCancelByCloid(
 	action := cancelsByCloidToAction(cancelWires)
 
 	timestamp := e.nextNonce()
-	sig, err := signL1Action(
-		action,
-		uint64(timestamp),
-		e.privateKey,
-		e.vaultAddress,
-		e.expiresAfter,
-		e.rest.IsMainnet(),
-	)
+	sig, err := action.sign(e.privateKey, timestamp, e)
 
 	if err != nil {
 		return BulkCancelResponse{}, fmt.Errorf(
@@ -578,14 +585,7 @@ func (e *Exchange) ScheduleCancel(
 	}
 
 	timestamp := e.nextNonce()
-	sig, err := signL1Action(
-		action.(scheduleCancelAction),
-		uint64(timestamp),
-		e.privateKey,
-		e.vaultAddress,
-		e.expiresAfter,
-		e.rest.IsMainnet(),
-	)
+	sig, err := action.sign(e.privateKey, timestamp, e)
 
 	if err != nil {
 		return CancelResponse{}, fmt.Errorf("failed to sign action: %w", err)
@@ -608,14 +608,7 @@ func (e *Exchange) UpdateLeverage(
 	}
 
 	timestamp := e.nextNonce()
-	sig, err := signL1Action(
-		action.(updateLeverageAction),
-		uint64(timestamp),
-		e.privateKey,
-		e.vaultAddress,
-		e.expiresAfter,
-		e.rest.IsMainnet(),
-	)
+	sig, err := action.sign(e.privateKey, timestamp, e)
 
 	if err != nil {
 		return UpdateResponse{}, fmt.Errorf("failed to sign action: %w", err)
@@ -638,14 +631,7 @@ func (e *Exchange) UpdateIsolatedMargin(
 	}
 
 	timestamp := e.nextNonce()
-	sig, err := signL1Action(
-		action.(updateIsolatedMarginAction),
-		uint64(timestamp),
-		e.privateKey,
-		e.vaultAddress,
-		e.expiresAfter,
-		e.rest.IsMainnet(),
-	)
+	sig, err := action.sign(e.privateKey, timestamp, e)
 
 	if err != nil {
 		return UpdateResponse{}, fmt.Errorf("failed to sign action: %w", err)
@@ -669,14 +655,7 @@ func (e *Exchange) SetReferrer(
 	}
 
 	timestamp := e.nextNonce()
-	sig, err := signL1Action(
-		action.(setReferrerAction),
-		uint64(timestamp),
-		e.privateKey,
-		e.vaultAddress,
-		e.expiresAfter,
-		e.rest.IsMainnet(),
-	)
+	sig, err := action.sign(e.privateKey, timestamp, e)
 
 	if err != nil {
 		return SetReferrerResponse{}, fmt.Errorf(
@@ -708,14 +687,7 @@ func (e *Exchange) CreateSubAccount(
 	}
 
 	timestamp := e.nextNonce()
-	sig, err := signL1Action(
-		action.(createSubAccountAction),
-		uint64(timestamp),
-		e.privateKey,
-		e.vaultAddress,
-		e.expiresAfter,
-		e.rest.IsMainnet(),
-	)
+	sig, err := action.sign(e.privateKey, timestamp, e)
 
 	if err != nil {
 		return CreateSubAccountResponse{}, fmt.Errorf(
@@ -748,10 +720,7 @@ func (e *Exchange) UsdClassTransfer(
 		)
 	}
 
-	sig, err := signUsdClassTransferAction(
-		action.(usdClassTransferAction),
-		e.privateKey,
-	)
+	sig, err := action.sign(e.privateKey, timestamp, e)
 
 	if err != nil {
 		return UpdateResponse{}, fmt.Errorf("failed to sign action: %w", err)
@@ -795,7 +764,7 @@ func (e *Exchange) SendAsset(
 		)
 	}
 
-	sig, err := signSendAssetAction(action.(sendAssetAction), e.privateKey)
+	sig, err := action.sign(e.privateKey, timestamp, e)
 	if err != nil {
 		return UpdateResponse{}, fmt.Errorf("failed to sign action: %w", err)
 	}
@@ -820,14 +789,7 @@ func (e *Exchange) SubAccountTransfer(
 	}
 
 	timestamp := e.nextNonce()
-	sig, err := signL1Action(
-		action.(subAccountTransferAction),
-		uint64(timestamp),
-		e.privateKey,
-		mo.None[common.Address](),
-		e.expiresAfter,
-		e.rest.IsMainnet(),
-	)
+	sig, err := action.sign(e.privateKey, timestamp, e)
 	if err != nil {
 		return UpdateResponse{}, fmt.Errorf("failed to sign action: %w", err)
 	}
@@ -858,14 +820,7 @@ func (e *Exchange) SubAccountSpotTransfer(
 	}
 
 	timestamp := e.nextNonce()
-	sig, err := signL1Action(
-		action.(subAccountSpotTransferAction),
-		uint64(timestamp),
-		e.privateKey,
-		mo.None[common.Address](),
-		e.expiresAfter,
-		e.rest.IsMainnet(),
-	)
+	sig, err := action.sign(e.privateKey, timestamp, e)
 	if err != nil {
 		return UpdateResponse{}, fmt.Errorf("failed to sign action: %w", err)
 	}
@@ -890,14 +845,7 @@ func (e *Exchange) VaultUsdTransfer(
 	}
 
 	timestamp := e.nextNonce()
-	sig, err := signL1Action(
-		action.(vaultTransferAction),
-		uint64(timestamp),
-		e.privateKey,
-		mo.None[common.Address](),
-		e.expiresAfter,
-		e.rest.IsMainnet(),
-	)
+	sig, err := action.sign(e.privateKey, timestamp, e)
 	if err != nil {
 		return UpdateResponse{}, fmt.Errorf("failed to sign action: %w", err)
 	}
@@ -922,7 +870,7 @@ func (e *Exchange) UsdTransfer(
 		)
 	}
 
-	sig, err := signUsdTransferAction(action.(usdTransferAction), e.privateKey)
+	sig, err := action.sign(e.privateKey, timestamp, e)
 	if err != nil {
 		return UpdateResponse{}, fmt.Errorf("failed to sign action: %w", err)
 	}
@@ -947,10 +895,7 @@ func (e *Exchange) SpotTransfer(
 		)
 	}
 
-	sig, err := signSpotTransferAction(
-		action.(spotTransferAction),
-		e.privateKey,
-	)
+	sig, err := action.sign(e.privateKey, timestamp, e)
 	if err != nil {
 		return UpdateResponse{}, fmt.Errorf("failed to sign action: %w", err)
 	}
@@ -975,10 +920,7 @@ func (e *Exchange) TokenDelegate(
 		)
 	}
 
-	sig, err := signTokenDelegateAction(
-		action.(tokenDelegateAction),
-		e.privateKey,
-	)
+	sig, err := action.sign(e.privateKey, timestamp, e)
 	if err != nil {
 		return UpdateResponse{}, fmt.Errorf("failed to sign action: %w", err)
 	}
@@ -1002,10 +944,7 @@ func (e *Exchange) WithdrawFromBridge(
 		)
 	}
 
-	sig, err := signWithdrawFromBridgeAction(
-		action.(withdrawFromBridgeAction),
-		e.privateKey,
-	)
+	sig, err := action.sign(e.privateKey, timestamp, e)
 	if err != nil {
 		return UpdateResponse{}, fmt.Errorf("failed to sign action: %w", err)
 	}
@@ -1037,7 +976,7 @@ func (e *Exchange) ApproveAgent(
 		)
 	}
 
-	sig, err := signAgentAction(action.(approveAgentAction), e.privateKey)
+	sig, err := action.sign(e.privateKey, timestamp, e)
 	if err != nil {
 		return UpdateResponse{}, nil, fmt.Errorf(
 			"failed to sign action: %w",
@@ -1070,10 +1009,7 @@ func (e *Exchange) ApproveBuilderFee(
 		)
 	}
 
-	sig, err := signApproveBuilderFeeAction(
-		action.(approveBuilderFeeAction),
-		e.privateKey,
-	)
+	sig, err := action.sign(e.privateKey, timestamp, e)
 	if err != nil {
 		return UpdateResponse{}, fmt.Errorf("failed to sign action: %w", err)
 	}
@@ -1100,10 +1036,7 @@ func (e *Exchange) ConvertToMultiSigUser(
 	}
 
 	timestamp := e.nextNonce()
-	sig, err := signConvertToMultiSigUserAction(
-		action.(convertToMultiSigUserAction),
-		e.privateKey,
-	)
+	sig, err := action.sign(e.privateKey, timestamp, e)
 	if err != nil {
 		return UpdateResponse{}, fmt.Errorf("failed to sign action: %w", err)
 	}
@@ -1631,8 +1564,9 @@ func MultiSig[Resp any, T request](
 	ctx context.Context,
 	e *Exchange,
 	request multiSigRequest[T],
+	outerSigner *ecdsa.PrivateKey,
 ) (Resp, error) {
-	action, err := request.toAction(ctx, e)
+	action, err := request.toAction(ctx, e, request.nonce)
 	if err != nil {
 		var noResp Resp
 		return noResp, fmt.Errorf(
@@ -1641,14 +1575,8 @@ func MultiSig[Resp any, T request](
 		)
 	}
 
-	sig, err := signMultiSigAction(
-		action.(multiSigAction),
-		uint64(request.nonce),
-		e.privateKey,
-		request.vaultAddress,
-		mo.None[time.Duration](),
-		e.rest.IsMainnet(),
-	)
+	sig, err := action.sign(e.privateKey, request.nonce, e)
+	// sig, err := action.sign(outerSigner, request.nonce, e)
 
 	var noResp Resp
 	if err != nil {

@@ -534,8 +534,8 @@ func (s *ExchangeIntegrationSuite) TestConvertToMultisigSigner(
 
 	timestamp := s.exchange.nextNonce()
 
-	// multisigUserPrivateKey, err := crypto.HexToECDSA(
-	// 	"",
+	// authorizedUserPrivateKey, err := crypto.HexToECDSA(
+	// 	os.Getenv("MULTISIG_AUTHORIZED_USER_KEY"),
 	// )
 	require.CmpNoError(err)
 
@@ -551,22 +551,23 @@ func (s *ExchangeIntegrationSuite) TestConvertToMultisigSigner(
 	)
 	require.CmpNoError(err)
 
-	// fmt.Println(sig.R.Hex())
+	fmt.Println(sig.R.Hex())
 
-	// response, err := MultiSig[OrderResponse](
-	// 	context.Background(),
-	// 	s.exchange,
-	// 	MultiSigRequest(
-	// 		common.HexToAddress("0x8E47A44EEcC5EB73a69bE26BaD372a1FfEBf08bd"),
-	// 		action,
-	// 		[]signature{sig},
-	// 		timestamp,
-	// 	),
-	// )
-	// require.CmpNoError(err)
+	response, err := MultiSig[OrderResponse](
+		context.Background(),
+		s.exchange,
+		MultiSigRequest(
+			common.HexToAddress("0x8E47A44EEcC5EB73a69bE26BaD372a1FfEBf08bd"),
+			request,
+			[]signature{sig},
+			timestamp,
+		),
+		nil,
+	)
+	require.CmpNoError(err)
 
-	// fmt.Printf("response:%+v\n", response)
-	ctx := context.Background()
+	fmt.Printf("response:%+v\n", response)
+	// ctx := context.Background()
 
 	// authorizedUser1 := common.HexToAddress(
 	// 	"0xd89155035cCD9458558d2706bA048199FBB68362",
@@ -581,19 +582,31 @@ func (s *ExchangeIntegrationSuite) TestConvertToMultisigSigner(
 
 	// fmt.Printf("response:%+v\n", response)
 
-	response2, err := MultiSig[UpdateResponse](
-		ctx,
-		s.exchange,
-		MultiSigRequest(
-			common.HexToAddress("0x8E47A44EEcC5EB73a69bE26BaD372a1FfEBf08bd"),
-			ConvertToMultiSigUserRequest(
-				[]common.Address{},
-				0,
-			),
-			[]signature{sig},
-			timestamp,
-		),
-	)
+	// innerRequest := ConvertToMultiSigUserRequest(
+	// 	[]common.Address{},
+	// 	0,
+	// )
+	// sig, err := SignMultisigPayload(
+	// 	ctx,
+	// 	s.exchange,
+	// 	innerRequest,
+	// 	authorizedUserPrivateKey,
+	// 	common.HexToAddress("0x8E47A44EEcC5EB73a69bE26BaD372a1FfEBf08bd"),
+	// 	timestamp,
+	// )
+	// require.CmpNoError(err)
+
+	// response2, err := MultiSig[UpdateResponse](
+	// 	ctx,
+	// 	s.exchange,
+	// 	MultiSigRequest(
+	// 		common.HexToAddress("0x8E47A44EEcC5EB73a69bE26BaD372a1FfEBf08bd"),
+	// 		innerRequest,
+	// 		[]signature{sig},
+	// 		timestamp,
+	// 	),
+	// 	s.exchange.privateKey,
+	// )
 	// response2, err := s.exchange.ConvertToMultiSigUser(
 	// 	ctx,
 	// 	ConvertToMultiSigUserRequest(
@@ -603,7 +616,7 @@ func (s *ExchangeIntegrationSuite) TestConvertToMultisigSigner(
 	// )
 	require.CmpNoError(err)
 
-	fmt.Printf("response:%+v\n", response2)
+	// fmt.Printf("response:%+v\n", response2)
 
 }
 

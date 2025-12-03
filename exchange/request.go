@@ -25,9 +25,15 @@ import (
 // action is an interface for all action types that can be signed and posted
 type action interface {
 	getType() string
+	sign(
+		privateKey *ecdsa.PrivateKey,
+		nonce int64,
+		e *Exchange,
+	) (signature, error)
 }
 
-// request is an interface for all request types that can be converted to actions
+// request is an interface for all request types that can be converted to
+// actions
 type request interface {
 	toAction(ctx context.Context, e *Exchange, opts ...any) (action, error)
 }
@@ -281,6 +287,21 @@ func (o orderAction) getType() string {
 	return o.Type
 }
 
+func (o orderAction) sign(
+	privateKey *ecdsa.PrivateKey,
+	nonce int64,
+	e *Exchange,
+) (signature, error) {
+	return signL1Action(
+		o,
+		uint64(nonce),
+		privateKey,
+		e.vaultAddress,
+		e.expiresAfter,
+		e.rest.IsMainnet(),
+	)
+}
+
 func ordersToAction(
 	orders []orderWire,
 	builder mo.Option[BuilderInfo],
@@ -407,6 +428,21 @@ func (b batchModifyAction) getType() string {
 	return b.Type
 }
 
+func (b batchModifyAction) sign(
+	privateKey *ecdsa.PrivateKey,
+	nonce int64,
+	e *Exchange,
+) (signature, error) {
+	return signL1Action(
+		b,
+		uint64(nonce),
+		privateKey,
+		e.vaultAddress,
+		e.expiresAfter,
+		e.rest.IsMainnet(),
+	)
+}
+
 // modifiesToAction converts a list of ModifyWires to a batch modify action
 func modifiesToAction(modifies []modifyWire) batchModifyAction {
 	return batchModifyAction{
@@ -471,6 +507,21 @@ type cancelAction struct {
 
 func (c cancelAction) getType() string {
 	return c.Type
+}
+
+func (c cancelAction) sign(
+	privateKey *ecdsa.PrivateKey,
+	nonce int64,
+	e *Exchange,
+) (signature, error) {
+	return signL1Action(
+		c,
+		uint64(nonce),
+		privateKey,
+		e.vaultAddress,
+		e.expiresAfter,
+		e.rest.IsMainnet(),
+	)
 }
 
 // cancelsToAction converts a list of CancelRequests to a cancel action
@@ -541,6 +592,21 @@ type cancelByCloidAction struct {
 
 func (c cancelByCloidAction) getType() string {
 	return c.Type
+}
+
+func (c cancelByCloidAction) sign(
+	privateKey *ecdsa.PrivateKey,
+	nonce int64,
+	e *Exchange,
+) (signature, error) {
+	return signL1Action(
+		c,
+		uint64(nonce),
+		privateKey,
+		e.vaultAddress,
+		e.expiresAfter,
+		e.rest.IsMainnet(),
+	)
 }
 
 // cancelsByCloidToAction converts a list of CancelRequestsByCloid to a
@@ -883,6 +949,21 @@ func (u updateLeverageAction) getType() string {
 	return u.Type
 }
 
+func (u updateLeverageAction) sign(
+	privateKey *ecdsa.PrivateKey,
+	nonce int64,
+	e *Exchange,
+) (signature, error) {
+	return signL1Action(
+		u,
+		uint64(nonce),
+		privateKey,
+		e.vaultAddress,
+		e.expiresAfter,
+		e.rest.IsMainnet(),
+	)
+}
+
 // updateLeverageToAction converts an UpdateLeverageRequest to an
 // updateLeverageAction
 func updateLeverageToAction(
@@ -917,7 +998,8 @@ func UpdateIsolatedMarginRequest(
 	}
 }
 
-// toAction converts an updateIsolatedMarginRequest to an updateIsolatedMarginAction
+// toAction converts an updateIsolatedMarginRequest to an
+// updateIsolatedMarginAction
 func (u updateIsolatedMarginRequest) toAction(
 	ctx context.Context,
 	e *Exchange,
@@ -948,6 +1030,21 @@ type updateIsolatedMarginAction struct {
 
 func (u updateIsolatedMarginAction) getType() string {
 	return u.Type
+}
+
+func (u updateIsolatedMarginAction) sign(
+	privateKey *ecdsa.PrivateKey,
+	nonce int64,
+	e *Exchange,
+) (signature, error) {
+	return signL1Action(
+		u,
+		uint64(nonce),
+		privateKey,
+		e.vaultAddress,
+		e.expiresAfter,
+		e.rest.IsMainnet(),
+	)
 }
 
 // updateIsolatedMarginToAction converts an UpdateIsolatedMarginRequest to an
@@ -1003,6 +1100,21 @@ func (s scheduleCancelAction) getType() string {
 	return s.Type
 }
 
+func (s scheduleCancelAction) sign(
+	privateKey *ecdsa.PrivateKey,
+	nonce int64,
+	e *Exchange,
+) (signature, error) {
+	return signL1Action(
+		s,
+		uint64(nonce),
+		privateKey,
+		e.vaultAddress,
+		e.expiresAfter,
+		e.rest.IsMainnet(),
+	)
+}
+
 func scheduleCancelToAction(s scheduleCancelRequest) scheduleCancelAction {
 	t := optionMap(s.time, func(value time.Time) int64 {
 		return value.UnixMilli()
@@ -1050,6 +1162,21 @@ func (s setReferrerAction) getType() string {
 	return s.Type
 }
 
+func (s setReferrerAction) sign(
+	privateKey *ecdsa.PrivateKey,
+	nonce int64,
+	e *Exchange,
+) (signature, error) {
+	return signL1Action(
+		s,
+		uint64(nonce),
+		privateKey,
+		e.vaultAddress,
+		e.expiresAfter,
+		e.rest.IsMainnet(),
+	)
+}
+
 // ============================================================================
 // Create Sub Account Request
 // ============================================================================
@@ -1083,6 +1210,21 @@ func (c createSubAccountAction) getType() string {
 	return c.Type
 }
 
+func (c createSubAccountAction) sign(
+	privateKey *ecdsa.PrivateKey,
+	nonce int64,
+	e *Exchange,
+) (signature, error) {
+	return signL1Action(
+		c,
+		uint64(nonce),
+		privateKey,
+		e.vaultAddress,
+		e.expiresAfter,
+		e.rest.IsMainnet(),
+	)
+}
+
 func createSubAccountToAction(n string) createSubAccountAction {
 	return createSubAccountAction{
 		Type: "createSubAccount",
@@ -1100,7 +1242,10 @@ type usdClassTransferRequest struct {
 }
 
 // UsdClassTransferRequest creates a new USD class transfer request
-func UsdClassTransferRequest(amount float64, toPerp bool) usdClassTransferRequest {
+func UsdClassTransferRequest(
+	amount float64,
+	toPerp bool,
+) usdClassTransferRequest {
 	return usdClassTransferRequest{
 		amount: amount,
 		toPerp: toPerp,
@@ -1124,13 +1269,18 @@ func (u usdClassTransferRequest) toAction(
 	}
 
 	if timestamp == 0 {
-		return nil, fmt.Errorf("timestamp is required in opts for usdClassTransferRequest")
+		return nil, fmt.Errorf(
+			"timestamp is required in opts for usdClassTransferRequest",
+		)
 	}
 
 	// Convert amount to wire format
 	strAmount, err := utils.FloatToWire(u.amount)
 	if err != nil {
-		return nil, fmt.Errorf("failed to convert amount to wire format: %w", err)
+		return nil, fmt.Errorf(
+			"failed to convert amount to wire format: %w",
+			err,
+		)
 	}
 
 	// Add vault address if present
@@ -1161,6 +1311,14 @@ func (u usdClassTransferAction) getType() string {
 	return u.Type
 }
 
+func (u usdClassTransferAction) sign(
+	privateKey *ecdsa.PrivateKey,
+	nonce int64,
+	e *Exchange,
+) (signature, error) {
+	return signUsdClassTransferAction(u, privateKey)
+}
+
 // ============================================================================
 // USD Transfer Request
 // ============================================================================
@@ -1171,7 +1329,10 @@ type usdTransferRequest struct {
 }
 
 // UsdTransferRequest creates a new USD transfer request
-func UsdTransferRequest(amount float64, destination common.Address) usdTransferRequest {
+func UsdTransferRequest(
+	amount float64,
+	destination common.Address,
+) usdTransferRequest {
 	return usdTransferRequest{
 		amount:      amount,
 		destination: destination,
@@ -1195,13 +1356,18 @@ func (u usdTransferRequest) toAction(
 	}
 
 	if timestamp == 0 {
-		return nil, fmt.Errorf("timestamp is required in opts for usdTransferRequest")
+		return nil, fmt.Errorf(
+			"timestamp is required in opts for usdTransferRequest",
+		)
 	}
 
 	// Convert amount to wire format
 	strAmount, err := utils.FloatToWire(u.amount)
 	if err != nil {
-		return nil, fmt.Errorf("failed to convert amount to wire format: %w", err)
+		return nil, fmt.Errorf(
+			"failed to convert amount to wire format: %w",
+			err,
+		)
 	}
 
 	return usdTransferAction{
@@ -1225,6 +1391,14 @@ type usdTransferAction struct {
 
 func (u usdTransferAction) getType() string {
 	return u.Type
+}
+
+func (u usdTransferAction) sign(
+	privateKey *ecdsa.PrivateKey,
+	nonce int64,
+	e *Exchange,
+) (signature, error) {
+	return signUsdTransferAction(u, privateKey)
 }
 
 // ============================================================================
@@ -1305,6 +1479,14 @@ func (s sendAssetAction) getType() string {
 	return s.Type
 }
 
+func (s sendAssetAction) sign(
+	privateKey *ecdsa.PrivateKey,
+	nonce int64,
+	e *Exchange,
+) (signature, error) {
+	return signSendAssetAction(s, privateKey)
+}
+
 // ============================================================================
 // Sub Account Transfer Request
 // ============================================================================
@@ -1316,7 +1498,11 @@ type subAccountTransferRequest struct {
 }
 
 // SubAccountTransferRequest creates a new sub account transfer request
-func SubAccountTransferRequest(subAccount common.Address, isDeposit bool, usd int64) subAccountTransferRequest {
+func SubAccountTransferRequest(
+	subAccount common.Address,
+	isDeposit bool,
+	usd int64,
+) subAccountTransferRequest {
 	return subAccountTransferRequest{
 		subAccount: subAccount,
 		isDeposit:  isDeposit,
@@ -1349,6 +1535,21 @@ func (s subAccountTransferAction) getType() string {
 	return s.Type
 }
 
+func (s subAccountTransferAction) sign(
+	privateKey *ecdsa.PrivateKey,
+	nonce int64,
+	e *Exchange,
+) (signature, error) {
+	return signL1Action(
+		s,
+		uint64(nonce),
+		privateKey,
+		e.vaultAddress,
+		e.expiresAfter,
+		e.rest.IsMainnet(),
+	)
+}
+
 // ============================================================================
 // Sub Account Spot Transfer Request
 // ============================================================================
@@ -1361,7 +1562,12 @@ type subAccountSpotTransferRequest struct {
 }
 
 // SubAccountSpotTransferRequest creates a new sub account spot transfer request
-func SubAccountSpotTransferRequest(subAccountUser common.Address, isDeposit bool, token string, amount float64) subAccountSpotTransferRequest {
+func SubAccountSpotTransferRequest(
+	subAccountUser common.Address,
+	isDeposit bool,
+	token string,
+	amount float64,
+) subAccountSpotTransferRequest {
 	return subAccountSpotTransferRequest{
 		subAccountUser: subAccountUser,
 		isDeposit:      isDeposit,
@@ -1370,7 +1576,8 @@ func SubAccountSpotTransferRequest(subAccountUser common.Address, isDeposit bool
 	}
 }
 
-// toAction converts a subAccountSpotTransferRequest to a subAccountSpotTransferAction
+// toAction converts a subAccountSpotTransferRequest to a
+// subAccountSpotTransferAction
 func (s subAccountSpotTransferRequest) toAction(
 	ctx context.Context,
 	e *Exchange,
@@ -1379,7 +1586,10 @@ func (s subAccountSpotTransferRequest) toAction(
 	// Convert amount to wire format
 	strAmount, err := utils.FloatToWire(s.amount)
 	if err != nil {
-		return nil, fmt.Errorf("failed to convert amount to wire format: %w", err)
+		return nil, fmt.Errorf(
+			"failed to convert amount to wire format: %w",
+			err,
+		)
 	}
 
 	return subAccountSpotTransferAction{
@@ -1403,6 +1613,21 @@ func (s subAccountSpotTransferAction) getType() string {
 	return s.Type
 }
 
+func (s subAccountSpotTransferAction) sign(
+	privateKey *ecdsa.PrivateKey,
+	nonce int64,
+	e *Exchange,
+) (signature, error) {
+	return signL1Action(
+		s,
+		uint64(nonce),
+		privateKey,
+		e.vaultAddress,
+		e.expiresAfter,
+		e.rest.IsMainnet(),
+	)
+}
+
 // ============================================================================
 // Vault Transfer Request
 // ============================================================================
@@ -1414,7 +1639,11 @@ type vaultTransferRequest struct {
 }
 
 // VaultTransferRequest creates a new vault transfer request
-func VaultTransferRequest(vaultAddress common.Address, isDeposit bool, usd int64) vaultTransferRequest {
+func VaultTransferRequest(
+	vaultAddress common.Address,
+	isDeposit bool,
+	usd int64,
+) vaultTransferRequest {
 	return vaultTransferRequest{
 		vaultAddress: vaultAddress,
 		isDeposit:    isDeposit,
@@ -1447,6 +1676,21 @@ func (v vaultTransferAction) getType() string {
 	return v.Type
 }
 
+func (v vaultTransferAction) sign(
+	privateKey *ecdsa.PrivateKey,
+	nonce int64,
+	e *Exchange,
+) (signature, error) {
+	return signL1Action(
+		v,
+		uint64(nonce),
+		privateKey,
+		e.vaultAddress,
+		e.expiresAfter,
+		e.rest.IsMainnet(),
+	)
+}
+
 // ============================================================================
 // Spot Transfer Request
 // ============================================================================
@@ -1458,7 +1702,11 @@ type spotTransferRequest struct {
 }
 
 // SpotTransferRequest creates a new spot transfer request
-func SpotTransferRequest(amount float64, destination common.Address, token string) spotTransferRequest {
+func SpotTransferRequest(
+	amount float64,
+	destination common.Address,
+	token string,
+) spotTransferRequest {
 	return spotTransferRequest{
 		amount:      amount,
 		destination: destination,
@@ -1483,13 +1731,18 @@ func (s spotTransferRequest) toAction(
 	}
 
 	if timestamp == 0 {
-		return nil, fmt.Errorf("timestamp is required in opts for spotTransferRequest")
+		return nil, fmt.Errorf(
+			"timestamp is required in opts for spotTransferRequest",
+		)
 	}
 
 	// Convert amount to wire format
 	strAmount, err := utils.FloatToWire(s.amount)
 	if err != nil {
-		return nil, fmt.Errorf("failed to convert amount to wire format: %w", err)
+		return nil, fmt.Errorf(
+			"failed to convert amount to wire format: %w",
+			err,
+		)
 	}
 
 	return spotTransferAction{
@@ -1517,6 +1770,14 @@ func (s spotTransferAction) getType() string {
 	return s.Type
 }
 
+func (s spotTransferAction) sign(
+	privateKey *ecdsa.PrivateKey,
+	nonce int64,
+	e *Exchange,
+) (signature, error) {
+	return signSpotTransferAction(s, privateKey)
+}
+
 // ============================================================================
 // Token Delegate Request
 // ============================================================================
@@ -1528,7 +1789,11 @@ type tokenDelegateRequest struct {
 }
 
 // TokenDelegateRequest creates a new token delegate request
-func TokenDelegateRequest(validator common.Address, wei int64, isUndelegate bool) tokenDelegateRequest {
+func TokenDelegateRequest(
+	validator common.Address,
+	wei int64,
+	isUndelegate bool,
+) tokenDelegateRequest {
 	return tokenDelegateRequest{
 		validator:    validator,
 		wei:          wei,
@@ -1553,7 +1818,9 @@ func (t tokenDelegateRequest) toAction(
 	}
 
 	if timestamp == 0 {
-		return nil, fmt.Errorf("timestamp is required in opts for tokenDelegateRequest")
+		return nil, fmt.Errorf(
+			"timestamp is required in opts for tokenDelegateRequest",
+		)
 	}
 
 	return tokenDelegateAction{
@@ -1579,6 +1846,14 @@ type tokenDelegateAction struct {
 
 func (t tokenDelegateAction) getType() string {
 	return t.Type
+}
+
+func (t tokenDelegateAction) sign(
+	privateKey *ecdsa.PrivateKey,
+	nonce int64,
+	e *Exchange,
+) (signature, error) {
+	return signTokenDelegateAction(t, privateKey)
 }
 
 // ============================================================================
@@ -1617,12 +1892,17 @@ func (w withdrawFromBridgeRequest) toAction(
 	}
 
 	if timestamp == 0 {
-		return nil, fmt.Errorf("timestamp is required in opts for withdrawFromBridgeRequest")
+		return nil, fmt.Errorf(
+			"timestamp is required in opts for withdrawFromBridgeRequest",
+		)
 	}
 
 	strAmount, err := utils.FloatToWire(w.amount)
 	if err != nil {
-		return nil, fmt.Errorf("failed to convert amount to wire format: %w", err)
+		return nil, fmt.Errorf(
+			"failed to convert amount to wire format: %w",
+			err,
+		)
 	}
 
 	return withdrawFromBridgeAction{
@@ -1646,6 +1926,14 @@ type withdrawFromBridgeAction struct {
 
 func (w withdrawFromBridgeAction) getType() string {
 	return w.Type
+}
+
+func (w withdrawFromBridgeAction) sign(
+	privateKey *ecdsa.PrivateKey,
+	nonce int64,
+	e *Exchange,
+) (signature, error) {
+	return signWithdrawFromBridgeAction(w, privateKey)
 }
 
 // ============================================================================
@@ -1679,7 +1967,8 @@ func WithAgentName(name string) approveAgentOption {
 }
 
 // toAction converts an approveAgentRequest to an approveAgentAction
-// Note: This requires agentPrivateKey (*ecdsa.PrivateKey) and timestamp (int64) in opts
+// Note: This requires agentPrivateKey (*ecdsa.PrivateKey) and timestamp (int64)
+// in opts
 func (a approveAgentRequest) toAction(
 	ctx context.Context,
 	e *Exchange,
@@ -1699,11 +1988,15 @@ func (a approveAgentRequest) toAction(
 	}
 
 	if agentPrivateKey == nil {
-		return nil, fmt.Errorf("agent private key is required in opts for approveAgentRequest")
+		return nil, fmt.Errorf(
+			"agent private key is required in opts for approveAgentRequest",
+		)
 	}
 
 	if timestamp == 0 {
-		return nil, fmt.Errorf("timestamp is required in opts for approveAgentRequest")
+		return nil, fmt.Errorf(
+			"timestamp is required in opts for approveAgentRequest",
+		)
 	}
 
 	// Derive agent address from the key
@@ -1737,6 +2030,14 @@ type approveAgentAction struct {
 
 func (a approveAgentAction) getType() string {
 	return a.Type
+}
+
+func (a approveAgentAction) sign(
+	privateKey *ecdsa.PrivateKey,
+	nonce int64,
+	e *Exchange,
+) (signature, error) {
+	return signAgentAction(a, privateKey)
 }
 
 // ============================================================================
@@ -1775,7 +2076,9 @@ func (a approveBuilderFeeRequest) toAction(
 	}
 
 	if timestamp == 0 {
-		return nil, fmt.Errorf("timestamp is required in opts for approveBuilderFeeRequest")
+		return nil, fmt.Errorf(
+			"timestamp is required in opts for approveBuilderFeeRequest",
+		)
 	}
 
 	return approveBuilderFeeAction{
@@ -1805,6 +2108,14 @@ func (a approveBuilderFeeAction) getType() string {
 	return a.Type
 }
 
+func (a approveBuilderFeeAction) sign(
+	privateKey *ecdsa.PrivateKey,
+	nonce int64,
+	e *Exchange,
+) (signature, error) {
+	return signApproveBuilderFeeAction(a, privateKey)
+}
+
 // ============================================================================
 // Convert To Multi Sig User Request
 // ============================================================================
@@ -1824,7 +2135,8 @@ func ConvertToMultiSigUserRequest(
 	}
 }
 
-// toAction converts a convertToMultiSigUserRequest to a convertToMultiSigUserAction
+// toAction converts a convertToMultiSigUserRequest to a
+// convertToMultiSigUserAction
 // Note: This requires timestamp (int64) in opts
 func (c convertToMultiSigUserRequest) toAction(
 	ctx context.Context,
@@ -1841,7 +2153,9 @@ func (c convertToMultiSigUserRequest) toAction(
 	}
 
 	if timestamp == 0 {
-		return nil, fmt.Errorf("timestamp is required in opts for convertToMultiSigUserRequest")
+		return nil, fmt.Errorf(
+			"timestamp is required in opts for convertToMultiSigUserRequest",
+		)
 	}
 
 	// Sort authorized users
@@ -1890,16 +2204,24 @@ func (a convertToMultiSigUserAction) getType() string {
 	return a.Type
 }
 
+func (a convertToMultiSigUserAction) sign(
+	privateKey *ecdsa.PrivateKey,
+	nonce int64,
+	e *Exchange,
+) (signature, error) {
+	return signConvertToMultiSigUserAction(a, privateKey)
+}
+
 // ============================================================================
 // Multi Sig Request
 // ============================================================================
 
 type multiSigRequest[T request] struct {
-	multiSigUser  common.Address
-	innerRequest  T
-	signatures    []signature
-	nonce         int64
-	vaultAddress  mo.Option[common.Address]
+	multiSigUser common.Address
+	innerRequest T
+	signatures   []signature
+	nonce        int64
+	vaultAddress mo.Option[common.Address]
 }
 
 type multiSigOption[T request] func(*multiSigConfig[T])
@@ -1937,7 +2259,9 @@ func MultiSigRequest[T request](
 	}
 }
 
-func WithMultiSigVaultAddress[T request](vaultAddress common.Address) multiSigOption[T] {
+func WithMultiSigVaultAddress[T request](
+	vaultAddress common.Address,
+) multiSigOption[T] {
 	return func(cfg *multiSigConfig[T]) {
 		cfg.vaultAddress = mo.Some(vaultAddress)
 	}
@@ -1955,7 +2279,10 @@ func (m multiSigRequest[T]) toAction(
 	// Convert inner request to action
 	innerAction, err := m.innerRequest.toAction(ctx, e, opts...)
 	if err != nil {
-		return nil, fmt.Errorf("failed to convert inner request to action: %w", err)
+		return nil, fmt.Errorf(
+			"failed to convert inner request to action: %w",
+			err,
+		)
 	}
 
 	// Create the multiSigAction
@@ -1966,7 +2293,10 @@ func (m multiSigRequest[T]) toAction(
 		Payload: multiSigPayload{
 			MultiSigUser: strings.ToLower(m.multiSigUser.Hex()),
 			OuterSigner:  strings.ToLower(walletAddress.Hex()),
-			Action:       innerAction,
+			// OuterSigner: strings.ToLower(
+			// 	"0xd89155035cCD9458558d2706bA048199FBB68362",
+			// ),
+			Action: innerAction,
 		},
 	}, nil
 }
@@ -1990,6 +2320,21 @@ type multiSigAction struct {
 
 func (a multiSigAction) getType() string {
 	return a.Type
+}
+
+func (a multiSigAction) sign(
+	privateKey *ecdsa.PrivateKey,
+	nonce int64,
+	e *Exchange,
+) (signature, error) {
+	return signMultiSigAction(
+		a,
+		uint64(nonce),
+		privateKey,
+		e.vaultAddress,
+		e.expiresAfter,
+		e.rest.IsMainnet(),
+	)
 }
 
 // ============================================================================
