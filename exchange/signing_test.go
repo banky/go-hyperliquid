@@ -286,9 +286,8 @@ func TestSubAccountTransferAction(t *testing.T) {
 	action := subAccountTransferAction{
 		Type:           "subAccountTransfer",
 		SubAccountUser: "0x1d9470d4b963f552e6f671a81619d395877bf409",
-
-		IsDeposit: true,
-		Usd:       10,
+		IsDeposit:      true,
+		Usd:            10,
 	}
 
 	sig, err := signL1Action(

@@ -3,6 +3,7 @@ package exchange
 import (
 	"context"
 	"crypto/ecdsa"
+	"encoding/json"
 	"fmt"
 	"math"
 	"slices"
@@ -925,7 +926,8 @@ func (e *Exchange) VaultUsdTransfer(
 	return post[UpdateResponse](ctx, e, action, timestamp, sig)
 }
 
-// UsdTransfer transfers USD to a destination address.
+// UsdTransfer transfers USD to a destination perp account on
+// Hyperliquid L1
 func (e *Exchange) UsdTransfer(
 	ctx context.Context,
 	amount float64,
@@ -957,213 +959,222 @@ func (e *Exchange) UsdTransfer(
 	return post[UpdateResponse](ctx, e, action, timestamp, sig)
 }
 
-// // SpotTransfer transfers spot tokens to a destination address.
-// func (e *Exchange) SpotTransfer(
-// 	ctx context.Context,
-// 	amount float64,
-// 	destination string,
-// 	token string,
-// ) (Response, error) {
-//  timestamp := e.nextNonce()
-// 	strAmount, err := floatToWire(amount)
-// 	if err != nil {
-// 		return Response{}, fmt.Errorf(
-// 			"failed to convert amount to wire format: %w",
-// 			err,
-// 		)
-// 	}
+// SpotTransfer transfers spot tokens to a destination address.
+func (e *Exchange) SpotTransfer(
+	ctx context.Context,
+	amount float64,
+	destination common.Address,
+	token string,
+) (UpdateResponse, error) {
+	timestamp := e.nextNonce()
+	strAmount, err := utils.FloatToWire(amount)
+	if err != nil {
+		return UpdateResponse{}, fmt.Errorf(
+			"failed to convert amount to wire format: %w",
+			err,
+		)
+	}
 
-// 	action := map[string]any{
-// 		"destination": destination,
-// 		"amount":      strAmount,
-// 		"token":       token,
-// 		"time":        timestamp,
-// 		"type":        "spotSend",
-// 	}
-// 	sig, err := e.signSpotTransferAction(action)
-// 	if err != nil {
-// 		return Response{}, fmt.Errorf("failed to sign action: %w", err)
-// 	}
+	action := spotTransferAction{
+		Type:             "spotSend",
+		Destination:      strings.ToLower(destination.Hex()),
+		Token:            token,
+		Amount:           strAmount,
+		Time:             timestamp,
+		SignatureChainId: getSignatureChainId(),
+		HyperliquidChain: e.rest.NetworkName(),
+	}
 
-// 	return e.post(ctx, action, timestamp, sig)
-// }
+	sig, err := signSpotTransferAction(action, e.privateKey)
+	if err != nil {
+		return UpdateResponse{}, fmt.Errorf("failed to sign action: %w", err)
+	}
 
-// // TokenDelegate delegates tokens to a validator.
-// func (e *Exchange) TokenDelegate(
-// 	ctx context.Context,
-// 	validator string,
-// 	wei int64,
-// 	isUndelegate bool,
-// ) (Response, error) {
-//  timestamp := e.nextNonce()
-// 	action := map[string]any{
-// 		"validator":    validator,
-// 		"wei":          wei,
-// 		"isUndelegate": isUndelegate,
-// 		"nonce":        timestamp,
-// 		"type":         "tokenDelegate",
-// 	}
-// 	sig, err := e.signTokenDelegateAction(action)
-// 	if err != nil {
-// 		return Response{}, fmt.Errorf("failed to sign action: %w", err)
-// 	}
+	return post[UpdateResponse](ctx, e, action, timestamp, sig)
+}
 
-// 	return e.post(ctx, action, timestamp, sig)
-// }
+// TokenDelegate delegates tokens to a validator.
+func (e *Exchange) TokenDelegate(
+	ctx context.Context,
+	validator common.Address,
+	wei int64,
+	isUndelegate bool,
+) (UpdateResponse, error) {
+	timestamp := e.nextNonce()
+	action := tokenDelegateAction{
+		Type:             "tokenDelegate",
+		Validator:        strings.ToLower(validator.Hex()),
+		Wei:              wei,
+		IsUndelegate:     isUndelegate,
+		Nonce:            timestamp,
+		SignatureChainId: getSignatureChainId(),
+		HyperliquidChain: e.rest.NetworkName(),
+	}
 
-// // WithdrawFromBridge withdraws tokens from the bridge.
-// func (e *Exchange) WithdrawFromBridge(
-// 	ctx context.Context,
-// 	amount float64,
-// 	destination string,
-// ) (Response, error) {
-//  timestamp := e.nextNonce()
-// 	strAmount, err := floatToWire(amount)
-// 	if err != nil {
-// 		return Response{}, fmt.Errorf(
-// 			"failed to convert amount to wire format: %w",
-// 			err,
-// 		)
-// 	}
+	sig, err := signTokenDelegateAction(action, e.privateKey)
+	if err != nil {
+		return UpdateResponse{}, fmt.Errorf("failed to sign action: %w", err)
+	}
 
-// 	action := map[string]any{
-// 		"destination": destination,
-// 		"amount":      strAmount,
-// 		"time":        timestamp,
-// 		"type":        "withdraw3",
-// 	}
-// 	sig, err := e.signWithdrawFromBridgeAction(action)
-// 	if err != nil {
-// 		return Response{}, fmt.Errorf("failed to sign action: %w", err)
-// 	}
+	return post[UpdateResponse](ctx, e, action, timestamp, sig)
+}
 
-// 	return e.post(ctx, action, timestamp, sig)
-// }
+// WithdrawFromBridge withdraws tokens from the bridge.
+func (e *Exchange) WithdrawFromBridge(
+	ctx context.Context,
+	amount float64,
+	destination common.Address,
+) (UpdateResponse, error) {
+	timestamp := e.nextNonce()
+	strAmount, err := utils.FloatToWire(amount)
+	if err != nil {
+		return UpdateResponse{}, fmt.Errorf(
+			"failed to convert amount to wire format: %w",
+			err,
+		)
+	}
 
-// // ApproveAgent approves an agent and returns the response and the agent's
-// // private key.
-// func (e *Exchange) ApproveAgent(
-// 	ctx context.Context,
-// 	opts ...ApproveAgentOption,
-// ) (Response, *ecdsa.PrivateKey, error) {
-// 	cfg := defaultApproveAgentConfig()
-// 	for _, opt := range opts {
-// 		opt(&cfg)
-// 	}
+	action := withdrawFromBridgeAction{
+		Type:             "withdraw3",
+		Destination:      strings.ToLower(destination.Hex()),
+		Amount:           strAmount,
+		Time:             timestamp,
+		SignatureChainId: getSignatureChainId(),
+		HyperliquidChain: e.rest.NetworkName(),
+	}
 
-// 	// Generate random agent private key
-// 	agentPrivateKey, err := crypto.GenerateKey()
-// 	if err != nil {
-// 		return Response{}, nil, fmt.Errorf(
-// 			"failed to generate agent key: %w",
-// 			err,
-// 		)
-// 	}
+	sig, err := signWithdrawFromBridgeAction(action, e.privateKey)
+	if err != nil {
+		return UpdateResponse{}, fmt.Errorf("failed to sign action: %w", err)
+	}
 
-// 	// Get agent address
-// 	agentAddress := crypto.PubkeyToAddress(agentPrivateKey.PublicKey)
+	return post[UpdateResponse](ctx, e, action, timestamp, sig)
+}
 
-//  timestamp := e.nextNonce()
-// 	action := map[string]any{
-// 		"type":         "approveAgent",
-// 		"agentAddress": agentAddress,
-// 		"nonce":        timestamp,
-// 	}
+// ApproveAgent approves an agent and returns the response and the agent's
+// private key.
+func (e *Exchange) ApproveAgent(
+	ctx context.Context,
+	request approveAgentRequest,
+) (UpdateResponse, *ecdsa.PrivateKey, error) {
+	// Generate random agent private key
+	agentPrivateKey, err := crypto.GenerateKey()
+	if err != nil {
+		return UpdateResponse{}, nil, fmt.Errorf(
+			"failed to generate agent key: %w",
+			err,
+		)
+	}
 
-// 	// Add agent name if provided
-// 	if a, ok := cfg.name.Get(); ok {
-// 		action["agentName"] = a
-// 	} else {
-// 		action["agentName"] = ""
-// 	}
+	agentAddress := crypto.PubkeyToAddress(agentPrivateKey.PublicKey)
+	timestamp := e.nextNonce()
 
-// 	sig, err := e.signAgentAction(action)
-// 	if err != nil {
-// 		return Response{}, nil, fmt.Errorf("failed to sign action: %w", err)
-// 	}
+	agentName := ""
+	if name, ok := request.agentName.Get(); ok {
+		agentName = name
+	}
 
-// 	// Remove agentName from action if name was not provided
-// 	if cfg.name.IsNone() {
-// 		delete(action, "agentName")
-// 	}
+	action := approveAgentAction{
+		Type:             "approveAgent",
+		AgentAddress:     strings.ToLower(agentAddress.Hex()),
+		AgentName:        agentName,
+		Nonce:            timestamp,
+		SignatureChainId: getSignatureChainId(),
+		HyperliquidChain: e.rest.NetworkName(),
+	}
 
-// 	result, err := e.post(ctx, action, timestamp, sig)
-// 	if err != nil {
-// 		return Response{}, nil, err
-// 	}
+	sig, err := signAgentAction(action, e.privateKey)
+	if err != nil {
+		return UpdateResponse{}, nil, fmt.Errorf(
+			"failed to sign action: %w",
+			err,
+		)
+	}
 
-// 	return result, agentPrivateKey, nil
-// }
+	result, err := post[UpdateResponse](ctx, e, action, timestamp, sig)
+	if err != nil {
+		return UpdateResponse{}, nil, err
+	}
 
-// // ApproveBuilderFee approves a maximum fee rate for a builder.
-// // maxFeeRate is a percentage, so maxFeeRate of 0.01 = 1%
-// func (e *Exchange) ApproveBuilderFee(
-// 	ctx context.Context,
-// 	builder common.Address,
-// 	maxFeeRate float64,
-// ) (Response, error) {
-//  timestamp := e.nextNonce()
-// 	maxFeeRateStr, err := floatToWire(maxFeeRate * 100)
-// 	if err != nil {
-// 		return Response{}, fmt.Errorf(
-// 			"failed to convert maxFeeRate to wire format: %w",
-// 			err,
-// 		)
-// 	}
-// 	action := map[string]any{
-// 		"maxFeeRate": maxFeeRateStr + "%",
-// 		"builder":    builder,
-// 		"nonce":      timestamp,
-// 		"type":       "approveBuilderFee",
-// 	}
-// 	sig, err := e.signApproveBuilderFeeAction(action)
-// 	if err != nil {
-// 		return Response{}, fmt.Errorf("failed to sign action: %w", err)
-// 	}
+	return result, agentPrivateKey, nil
+}
 
-// 	return e.post(ctx, action, timestamp, sig)
-// }
+// ApproveBuilderFee approves a maximum fee rate for a builder.
+// maxFeeRate should be a percent string; e.g. "0.001%"
+func (e *Exchange) ApproveBuilderFee(
+	ctx context.Context,
+	builder common.Address,
+	maxFeeRate string,
+) (UpdateResponse, error) {
+	timestamp := e.nextNonce()
 
-// // ConvertToMultiSigUser converts the user account to a multi-sig account
-// func (e *Exchange) ConvertToMultiSigUser(
-// 	ctx context.Context,
-// 	authorizedUsers []common.Address,
-// 	threshold int64,
-// ) (Response, error) {
-//  timestamp := e.nextNonce()
+	action := approveBuilderFeeAction{
+		Type:             "approveBuilderFee",
+		MaxFeeRate:       maxFeeRate,
+		Builder:          strings.ToLower(builder.Hex()),
+		Nonce:            timestamp,
+		SignatureChainId: getSignatureChainId(),
+		HyperliquidChain: e.rest.NetworkName(),
+	}
 
-// 	// Sort authorized users
-// 	sortedUsers := make([]common.Address, len(authorizedUsers))
-// 	copy(sortedUsers, authorizedUsers)
-// 	slices.SortFunc(
-// 		authorizedUsers,
-// 		func(a, z common.Address) int64 {
-// 			return a.Cmp(z)
-// 		},
-// 	)
+	sig, err := signApproveBuilderFeeAction(action, e.privateKey)
+	if err != nil {
+		return UpdateResponse{}, fmt.Errorf("failed to sign action: %w", err)
+	}
 
-// 	// Create signers JSON
-// 	signers := map[string]any{
-// 		"authorizedUsers": sortedUsers,
-// 		"threshold":       int64(threshold),
-// 	}
-// 	signersJSON, err := json.Marshal(signers)
-// 	if err != nil {
-// 		return Response{}, fmt.Errorf("failed to marshal signers: %w", err)
-// 	}
+	result, err := post[UpdateResponse](ctx, e, action, timestamp, sig)
+	if err != nil {
+		return UpdateResponse{}, err
+	}
 
-// 	action := map[string]any{
-// 		"type":    "convertToMultiSigUser",
-// 		"signers": string(signersJSON),
-// 		"nonce":   timestamp,
-// 	}
-// 	sig, err := e.signConvertToMultiSigUserAction(action)
-// 	if err != nil {
-// 		return Response{}, fmt.Errorf("failed to sign action: %w", err)
-// 	}
+	return result, nil
+}
 
-// 	return e.post(ctx, action, timestamp, sig)
-// }
+// ConvertToMultiSigUser converts the user account to a multi-sig account
+func (e *Exchange) ConvertToMultiSigUser(
+	ctx context.Context,
+	request convertToMultiSigUserRequest,
+) (UpdateResponse, error) {
+	timestamp := e.nextNonce()
+
+	// Sort authorized users
+	sortedUsers := make([]common.Address, len(request.authorizedUsers))
+	copy(sortedUsers, request.authorizedUsers)
+	slices.SortFunc(
+		sortedUsers,
+		func(a, z common.Address) int {
+			return a.Cmp(z)
+		},
+	)
+
+	// Create signers JSON
+	signers := map[string]any{
+		"authorizedUsers": sortedUsers,
+		"threshold":       request.threshold,
+	}
+	signersJSON, err := json.Marshal(signers)
+	if err != nil {
+		return UpdateResponse{}, fmt.Errorf(
+			"failed to marshal signers: %w",
+			err,
+		)
+	}
+
+	action := convertToMultiSigUserAction{
+		Type:             "convertToMultiSigUser",
+		Signers:          string(signersJSON),
+		Nonce:            timestamp,
+		SignatureChainId: getSignatureChainId(),
+		HyperliquidChain: e.rest.NetworkName(),
+	}
+
+	sig, err := signConvertToMultiSigUserAction(action, e.privateKey)
+	if err != nil {
+		return UpdateResponse{}, fmt.Errorf("failed to sign action: %w", err)
+	}
+
+	return post[UpdateResponse](ctx, e, action, timestamp, sig)
+}
 
 // // SpotDeployRegisterToken registers a token for spot deployment
 // func (e *Exchange) SpotDeployRegisterToken(
@@ -1678,39 +1689,50 @@ func (e *Exchange) UsdTransfer(
 // 	return e.post(ctx, action, timestamp, sig)
 // }
 
-// // MultiSig executes a multi-signature transaction
-// func (e *Exchange) MultiSig(
-// 	ctx context.Context,
-// 	multiSigUser common.Address,
-// 	innerAction map[string]any,
-// 	signatures []any,
-// 	nonce int64,
-// 	vaultAddress *common.Address,
-// ) (any, error) {
-// 	walletAddress := crypto.PubkeyToAddress(e.privateKey.PublicKey)
+// MultiSig executes a multi-signature transaction
+// Use the generic Resp to specify the response type of the
+// action
+func MultiSig[Resp any](
+	ctx context.Context,
+	e *Exchange,
+	request multiSigRequest,
+) (Resp, error) {
+	walletAddress := crypto.PubkeyToAddress(e.privateKey.PublicKey)
 
-// 	multiSigAction := map[string]any{
-// 		"type":             "multiSig",
-// 		"signatureChainId": "0x66eee",
-// 		"signatures":       signatures,
-// 		"payload": map[string]any{
-// 			"multiSigUser": strings.ToLower(multiSigUser.String()),
-// 			"outerSigner":  strings.ToLower(walletAddress.String()),
-// 			"action":       innerAction,
-// 		},
-// 	}
-// 	sig, err := e.signMultiSigAction(
-// 		multiSigAction,
-// 		vaultAddress,
-// 		uint64(nonce),
-// 	)
-// 	if err != nil {
-// 		return Response{}, fmt.Errorf("failed to sign action: %w", err)
-// 	}
-// 	return e.post(ctx, multiSigAction, nonce, sig)
-// }
+	action := multiSigAction{
+		Type:             "multiSig",
+		SignatureChainId: getSignatureChainId(),
+		Signatures:       request.signatures,
+		Payload: multiSigPayload{
+			MultiSigUser: strings.ToLower(request.multiSigUser.Hex()),
+			OuterSigner:  strings.ToLower(walletAddress.Hex()),
+			Action:       request.innerAction,
+		},
+	}
 
-// // Noop sends a no-operation action
+	sig, err := signMultiSigAction(
+		action,
+		uint64(request.nonce),
+		e.privateKey,
+		request.vaultAddress,
+		mo.None[time.Duration](),
+		e.rest.IsMainnet(),
+	)
+
+	var noResp Resp
+	if err != nil {
+		return noResp, fmt.Errorf("failed to sign action: %w", err)
+	}
+
+	result, err := post[Resp](ctx, e, action, request.nonce, sig)
+	if err != nil {
+		return noResp, err
+	}
+
+	return result, nil
+}
+
+// Noop sends a no-operation action
 // func (e *Exchange) Noop(ctx context.Context, nonce int64) (Response, error) {
 // 	action := map[string]any{
 // 		"type": "noop",

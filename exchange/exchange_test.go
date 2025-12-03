@@ -406,9 +406,7 @@ func (s *ExchangeIntegrationSuite) TestVaultUsdTransfer(
 	fmt.Printf("response:%+v\n", response)
 }
 
-func (s *ExchangeIntegrationSuite) TestUsdTransfer(
-	assert, require *td.T,
-) {
+func (s *ExchangeIntegrationSuite) TestUsdTransfer(assert, require *td.T) {
 	ctx := context.Background()
 
 	destination := common.HexToAddress(
@@ -423,6 +421,176 @@ func (s *ExchangeIntegrationSuite) TestUsdTransfer(
 	require.CmpNoError(err)
 
 	fmt.Printf("response:%+v\n", response)
+}
+
+func (s *ExchangeIntegrationSuite) TestSpotTransfer(assert, require *td.T) {
+	ctx := context.Background()
+
+	destination := common.HexToAddress(
+		"0x7851f494001129fcf7adEB85406eE710Dbdb9446",
+	)
+
+	response, err := s.exchange.SpotTransfer(
+		ctx,
+		0.1,
+		destination,
+		"HYPE:0x7317beb7cceed72ef0b346074cc8e7ab",
+	)
+	require.CmpNoError(err)
+
+	fmt.Printf("response:%+v\n", response)
+}
+
+func (s *ExchangeIntegrationSuite) TestTokenDelegate(assert, require *td.T) {
+	ctx := context.Background()
+
+	validator := common.HexToAddress(
+		"0x946bf3135c7d15e4462b510f74b6e304aabb5b21",
+	)
+
+	response, err := s.exchange.TokenDelegate(
+		ctx,
+		validator,
+		100,
+		false,
+	)
+	require.CmpNoError(err)
+
+	fmt.Printf("response:%+v\n", response)
+}
+
+func (s *ExchangeIntegrationSuite) TestWithdrawFromBridge(
+	assert, require *td.T,
+) {
+	ctx := context.Background()
+
+	destination := common.HexToAddress(
+		"0xa642a0ece65e1f19519cDd189B3142C70ea00bb5",
+	)
+
+	response, err := s.exchange.WithdrawFromBridge(
+		ctx,
+		100,
+		destination,
+	)
+	require.CmpNoError(err)
+
+	fmt.Printf("response:%+v\n", response)
+}
+
+func (s *ExchangeIntegrationSuite) TestApproveAgent(
+	assert, require *td.T,
+) {
+	ctx := context.Background()
+
+	response, privKey, err := s.exchange.ApproveAgent(
+		ctx,
+		ApproveAgentRequest(WithAgentName("Test2")),
+	)
+	require.CmpNoError(err)
+
+	fmt.Printf("%x\n", privKey.D)
+
+	fmt.Printf("response:%+v\n", response)
+}
+
+func (s *ExchangeIntegrationSuite) TestApproveBuilderFee(
+	assert, require *td.T,
+) {
+	ctx := context.Background()
+
+	builder := common.HexToAddress(
+		"0xa642a0ece65e1f19519cDd189B3142C70ea00bb5",
+	)
+
+	response, err := s.exchange.ApproveBuilderFee(
+		ctx,
+		builder,
+		"0.01%",
+	)
+	require.CmpNoError(err)
+
+	fmt.Printf("response:%+v\n", response)
+}
+
+func (s *ExchangeIntegrationSuite) TestConvertToMultisigSigner(
+	assert, require *td.T,
+) {
+	// request := OrderRequest(
+	// 	"ETH",
+	// 	true,
+	// 	0.2,
+	// 	1100,
+	// 	WithLimitOrder(LimitOrder{Tif: "Gtc"}),
+	// )
+	// wire, err := request.toOrderWire(4)
+	// require.CmpNoError(err)
+	// action := ordersToAction(
+	// 	[]orderWire{wire},
+	// 	mo.None[BuilderInfo](),
+	// 	mo.None[OrderGrouping](),
+	// )
+
+	// timestamp := s.exchange.nextNonce()
+
+	// multisigUserPrivateKey, err := crypto.HexToECDSA(
+	// 	"",
+	// )
+	// require.CmpNoError(err)
+
+	// sig, err := signMultisigL1ActionPayload(
+	// 	action,
+	// 	uint64(timestamp),
+	// 	s.exchange.privateKey,
+	// 	s.exchange.vaultAddress,
+	// 	s.exchange.expiresAfter,
+	// 	s.exchange.rest.IsMainnet(),
+	// 	common.HexToAddress("0x8E47A44EEcC5EB73a69bE26BaD372a1FfEBf08bd"),
+	// 	common.HexToAddress("0xd89155035ccd9458558d2706ba048199fbb68362"),
+	// )
+	// require.CmpNoError(err)
+
+	// fmt.Println(sig.R.Hex())
+
+	// response, err := MultiSig[OrderResponse](
+	// 	context.Background(),
+	// 	s.exchange,
+	// 	MultiSigRequest(
+	// 		common.HexToAddress("0x8E47A44EEcC5EB73a69bE26BaD372a1FfEBf08bd"),
+	// 		action,
+	// 		[]signature{sig},
+	// 		timestamp,
+	// 	),
+	// )
+	// require.CmpNoError(err)
+
+	// fmt.Printf("response:%+v\n", response)
+	ctx := context.Background()
+
+	// authorizedUser1 := common.HexToAddress(
+	// 	"0xd89155035cCD9458558d2706bA048199FBB68362",
+	// )
+
+	// response, err := s.exchange.ConvertToMultiSigUser(
+	// 	ctx,
+	// 	[]common.Address{authorizedUser1},
+	// 	1,
+	// )
+	// require.CmpNoError(err)
+
+	// fmt.Printf("response:%+v\n", response)
+
+	response2, err := s.exchange.ConvertToMultiSigUser(
+		ctx,
+		ConvertToMultiSigUserRequest(
+			[]common.Address{},
+			0,
+		),
+	)
+	require.CmpNoError(err)
+
+	fmt.Printf("response:%+v\n", response2)
+
 }
 
 func (s *ExchangeIntegrationSuite) getTestAccountName() string {

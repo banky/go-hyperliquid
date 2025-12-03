@@ -87,6 +87,47 @@ func TestUnmarshalResponse_OK_RestingStatus(t *testing.T) {
 	}
 }
 
+func TestUnmarshalArrIntoSingleOrdersResponse(t *testing.T) {
+	var resp response[OrderResponse]
+
+	if err := json.Unmarshal([]byte(okRestingJSON), &resp); err != nil {
+		t.Fatalf("unexpected error unmarshalling okRestingJSON: %v", err)
+	}
+
+	if resp.Status != "ok" {
+		t.Fatalf("expected Status == %q, got %q", "ok", resp.Status)
+	}
+
+	if resp.Data == nil {
+		t.Fatalf("expected Data to be non-nil for ok response")
+	}
+
+	if resp.ErrorMessage != "" {
+		t.Fatalf(
+			"expected ErrorMessage to be empty for ok response, got %q",
+			resp.ErrorMessage,
+		)
+	}
+
+	// if len(*resp.Data) != 1 {
+	// 	t.Fatalf("expected 1 status, got %d", len(*resp.Data))
+	// }
+
+	status := (*resp.Data)
+	if status.Resting == nil {
+		t.Fatalf("expected Resting to be non-nil")
+	}
+
+	const expectedOID int64 = 77738308
+	if status.Resting.Oid != expectedOID {
+		t.Fatalf(
+			"expected Resting.OID == %d, got %d",
+			expectedOID,
+			status.Resting.Oid,
+		)
+	}
+}
+
 func TestUnmarshalResponse_OK_ErrorStatus(t *testing.T) {
 	var resp response[BulkOrdersResponse]
 

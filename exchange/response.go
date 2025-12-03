@@ -123,23 +123,53 @@ func (or *BulkOrdersResponse) UnmarshalJSON(data []byte) error {
 // UnmarshalJSON handles errors by bubbling them up
 func (os *OrderResponse) UnmarshalJSON(data []byte) error {
 	// Try to unmarshal as an object with resting/filled/error fields
-	var obj struct {
+	type shape struct {
 		Resting *OrderStatusResting `json:"resting,omitempty"`
 		Filled  *OrderStatusFilled  `json:"filled,omitempty"`
 		Error   *string             `json:"error,omitempty"`
 	}
+	var obj shape
 	if err := json.Unmarshal(data, &obj); err != nil {
 		return err
 	}
 
 	// If there's an error in the response, bubble it up
+	// TODO: Stop bubbling it makes things harder for bulk
 	if obj.Error != nil {
 		return fmt.Errorf("%s", *obj.Error)
 	}
 
-	os.Resting = obj.Resting
-	os.Filled = obj.Filled
-	return nil
+	if obj.Resting != nil || obj.Filled != nil {
+		os.Resting = obj.Resting
+		os.Filled = obj.Filled
+		return nil
+	}
+
+	// Try to parse as an array and get first one
+	statuses, err := extractStatuses[OrderResponse](data)
+	if err != nil {
+		return err
+	}
+
+	if len(statuses) != 1 {
+		return fmt.Errorf(
+			"Invalid response. Expected 1 order, got: %d",
+			len(statuses),
+		)
+	}
+
+	obj.Resting = statuses[0].Resting
+	obj.Filled = statuses[0].Filled
+
+	if obj.Resting != nil || obj.Filled != nil {
+		os.Resting = obj.Resting
+		os.Filled = obj.Filled
+		return nil
+	}
+
+	return fmt.Errorf(
+		"Expected either Resting or Filled to present, but both are nil",
+	)
 }
 
 type OrderStatusResting struct {

@@ -6,6 +6,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/vmihailenco/msgpack/v5"
 )
 
 type signature struct {
@@ -30,6 +31,24 @@ func (s signature) MarshalJSON() ([]byte, error) {
 	}
 
 	return json.Marshal(a)
+}
+
+var _ msgpack.CustomEncoder = (*signature)(nil)
+
+func (s *signature) EncodeMsgpack(enc *msgpack.Encoder) error {
+	type alias struct {
+		R string `msgpack:"r"`
+		S string `msgpack:"s"`
+		V uint8  `msgpack:"v"`
+	}
+
+	a := alias{
+		R: hexutil.Encode(s.R[:]),
+		S: hexutil.Encode(s.S[:]),
+		V: uint8(s.V),
+	}
+
+	return enc.Encode(a)
 }
 
 // UnmarshalJSON decodes from:

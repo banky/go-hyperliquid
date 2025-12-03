@@ -828,6 +828,224 @@ func (v vaultTransferAction) getType() string {
 }
 
 // ============================================================================
+// Spot Transfer Action
+// ============================================================================
+
+type spotTransferAction struct {
+	Type             string `json:"type"`
+	Destination      string `json:"destination"`
+	Token            string `json:"token"`
+	Amount           string `json:"amount"`
+	Time             int64  `json:"time"`
+	SignatureChainId string `json:"signatureChainId"`
+	HyperliquidChain string `json:"hyperliquidChain"`
+}
+
+func (s spotTransferAction) getType() string {
+	return s.Type
+}
+
+// ============================================================================
+// Token Delegate Action
+// ============================================================================
+
+type tokenDelegateAction struct {
+	Type             string `json:"type"`
+	Validator        string `json:"validator"`
+	Wei              int64  `json:"wei"`
+	IsUndelegate     bool   `json:"isUndelegate"`
+	Nonce            int64  `json:"nonce"`
+	SignatureChainId string `json:"signatureChainId"`
+	HyperliquidChain string `json:"hyperliquidChain"`
+}
+
+func (t tokenDelegateAction) getType() string {
+	return t.Type
+}
+
+type withdrawFromBridgeAction struct {
+	Type             string `json:"type"`
+	Destination      string `json:"destination"`
+	Amount           string `json:"amount"`
+	Time             int64  `json:"time"`
+	SignatureChainId string `json:"signatureChainId"`
+	HyperliquidChain string `json:"hyperliquidChain"`
+}
+
+func (w withdrawFromBridgeAction) getType() string {
+	return w.Type
+}
+
+// ============================================================================
+// Approve Agent Request
+// ============================================================================
+
+type approveAgentRequest struct {
+	agentName mo.Option[string]
+}
+
+type approveAgentOption func(*approveAgentConfig)
+
+type approveAgentConfig struct {
+	agentName mo.Option[string]
+}
+
+func ApproveAgentRequest(opts ...approveAgentOption) approveAgentRequest {
+	cfg := approveAgentConfig{}
+	for _, opt := range opts {
+		opt(&cfg)
+	}
+	return approveAgentRequest{
+		agentName: cfg.agentName,
+	}
+}
+
+func WithAgentName(name string) approveAgentOption {
+	return func(cfg *approveAgentConfig) {
+		cfg.agentName = mo.Some(name)
+	}
+}
+
+type approveAgentAction struct {
+	Type             string `json:"type"`
+	AgentAddress     string `json:"agentAddress"`
+	AgentName        string `json:"agentName"`
+	Nonce            int64  `json:"nonce"`
+	SignatureChainId string `json:"signatureChainId"`
+	HyperliquidChain string `json:"hyperliquidChain"`
+}
+
+func (a approveAgentAction) getType() string {
+	return a.Type
+}
+
+// ============================================================================
+// Approve Builder Fee Action
+// ============================================================================
+
+type approveBuilderFeeAction struct {
+	Type             string `json:"type"`
+	MaxFeeRate       string `json:"maxFeeRate"`
+	Builder          string `json:"builder"`
+	Nonce            int64  `json:"nonce"`
+	SignatureChainId string `json:"signatureChainId"`
+	HyperliquidChain string `json:"hyperliquidChain"`
+}
+
+func (a approveBuilderFeeAction) getType() string {
+	return a.Type
+}
+
+// ============================================================================
+// Convert To Multi Sig User Request
+// ============================================================================
+
+type convertToMultiSigUserRequest struct {
+	authorizedUsers []common.Address
+	threshold       int64
+}
+
+func ConvertToMultiSigUserRequest(
+	authorizedUsers []common.Address,
+	threshold int64,
+) convertToMultiSigUserRequest {
+	return convertToMultiSigUserRequest{
+		authorizedUsers: authorizedUsers,
+		threshold:       threshold,
+	}
+}
+
+// ============================================================================
+// Convert To Multi Sig User Action
+// ============================================================================
+
+type convertToMultiSigUserAction struct {
+	Type             string `json:"type"`
+	Signers          string `json:"signers"`
+	Nonce            int64  `json:"nonce"`
+	SignatureChainId string `json:"signatureChainId"`
+	HyperliquidChain string `json:"hyperliquidChain"`
+}
+
+func (a convertToMultiSigUserAction) getType() string {
+	return a.Type
+}
+
+// ============================================================================
+// Multi Sig Request
+// ============================================================================
+
+type multiSigRequest struct {
+	multiSigUser common.Address
+	innerAction  any
+	signatures   []signature
+	nonce        int64
+	vaultAddress mo.Option[common.Address]
+}
+
+type multiSigOption func(*multiSigConfig)
+
+type multiSigConfig struct {
+	multiSigUser common.Address
+	innerAction  any
+	signatures   []signature
+	nonce        int64
+	vaultAddress mo.Option[common.Address]
+}
+
+func MultiSigRequest(
+	multiSigUser common.Address,
+	innerAction any,
+	signatures []signature,
+	nonce int64,
+	opts ...multiSigOption,
+) multiSigRequest {
+	cfg := multiSigConfig{
+		multiSigUser: multiSigUser,
+		innerAction:  innerAction,
+		signatures:   signatures,
+		nonce:        nonce,
+	}
+	for _, opt := range opts {
+		opt(&cfg)
+	}
+	return multiSigRequest{
+		multiSigUser: cfg.multiSigUser,
+		innerAction:  cfg.innerAction,
+		signatures:   cfg.signatures,
+		nonce:        cfg.nonce,
+		vaultAddress: cfg.vaultAddress,
+	}
+}
+
+func WithMultiSigVaultAddress(vaultAddress common.Address) multiSigOption {
+	return func(cfg *multiSigConfig) {
+		cfg.vaultAddress = mo.Some(vaultAddress)
+	}
+}
+
+// ============================================================================
+// Multi Sig Action
+// ============================================================================
+
+type multiSigPayload struct {
+	MultiSigUser string `json:"multiSigUser"`
+	OuterSigner  string `json:"outerSigner"`
+	Action       any    `json:"action"`
+}
+
+type multiSigAction struct {
+	Type             string          `json:"type"`
+	SignatureChainId string          `json:"signatureChainId"`
+	Signatures       []signature     `json:"signatures"`
+	Payload          multiSigPayload `json:"payload"`
+}
+
+func (a multiSigAction) getType() string {
+	return a.Type
+}
+
+// ============================================================================
 // Utility Functions
 // ============================================================================
 

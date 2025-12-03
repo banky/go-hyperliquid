@@ -6,6 +6,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"math/big"
+	"strings"
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -86,16 +87,86 @@ func signL1ActionWithVault(
 }
 
 // signMultiSigAction signs a multi-signature action
+// func signMultiSigAction(
+// 	action map[string]any,
+// 	nonce uint64,
+// 	privateKey *ecdsa.PrivateKey,
+// 	vaultAddress mo.Option[common.Address],
+// 	expiresAfter mo.Option[time.Duration],
+// 	isMainnet bool,
+// ) (signature, error) {
+// 	actionHash, err := hashAction(
+// 		action,
+// 		vaultAddress,
+// 		nonce,
+// 		expiresAfter,
+// 	)
+// 	if err != nil {
+// 		return signature{}, fmt.Errorf("failed to create action hash: %w", err)
+// 	}
+
+// 	phantomAgent := constructPhantomAgent(actionHash, isMainnet)
+// 	typedData := l1Payload(phantomAgent)
+
+// 	hash, _, err := apitypes.TypedDataAndHash(typedData)
+// 	if err != nil {
+// 		return signature{}, fmt.Errorf(
+// 			"failed generating hash for typed data: %w",
+// 			err,
+// 		)
+// 	}
+
+// 	return signHash(common.BytesToHash(hash), privateKey)
+// }
+
+func signMultisigL1ActionPayload[T any](
+	action T,
+	nonce uint64,
+	privateKey *ecdsa.PrivateKey,
+	vaultAddress mo.Option[common.Address],
+	expiresAfter mo.Option[time.Duration],
+	isMainnet bool,
+	multiSigUser common.Address,
+	outerSigner common.Address,
+) (signature, error) {
+	envelope := []any{
+		strings.ToLower(multiSigUser.Hex()),
+		strings.ToLower(outerSigner.Hex()),
+		action,
+	}
+
+	return signL1Action(
+		envelope,
+		nonce,
+		privateKey,
+		vaultAddress,
+		expiresAfter,
+		isMainnet,
+	)
+}
+
 func signMultiSigAction(
-	action map[string]any,
+	action multiSigAction,
 	nonce uint64,
 	privateKey *ecdsa.PrivateKey,
 	vaultAddress mo.Option[common.Address],
 	expiresAfter mo.Option[time.Duration],
 	isMainnet bool,
 ) (signature, error) {
+	// Create action without type for hashing
+	actionWithoutType := struct {
+		SignatureChainId string          `json:"signatureChainId"`
+		Signatures       []signature     `json:"signatures"`
+		Payload          multiSigPayload `json:"payload"`
+	}{
+		SignatureChainId: action.SignatureChainId,
+		Signatures:       action.Signatures,
+		Payload:          action.Payload,
+	}
+
+	// Hash the action
 	actionHash, err := hashAction(
-		action,
+		actionWithoutType,
 		vaultAddress,
 		nonce,
 		expiresAfter,
@@ -104,18 +175,28 @@ func signMultiSigAction(
 		return signature{}, fmt.Errorf("failed to create action hash: %w", err)
 	}
 
-	phantomAgent := constructPhantomAgent(actionHash, isMainnet)
-	typedData := l1Payload(phantomAgent)
-
-	hash, _, err := apitypes.TypedDataAndHash(typedData)
-	if err != nil {
-		return signature{}, fmt.Errorf(
-			"failed generating hash for typed data: %w",
-			err,
-		)
+	// Create envelope for signing
+	chainName := "Mainnet"
+	if !isMainnet {
+		chainName = "Testnet"
 	}
 
-	return signHash(common.BytesToHash(hash), privateKey)
+	envelope := map[string]any{
+		"hyperliquidChain":   chainName,
+		"multiSigActionHash": actionHash,
+		"nonce":              big.NewInt(int64(nonce)),
+	}
+
+	return signUserSignedAction(
+		envelope,
+		[]apitypes.Type{
+			{Name: "hyperliquidChain", Type: "string"},
+			{Name: "multiSigActionHash", Type: "bytes32"},
+			{Name: "nonce", Type: "uint64"},
+		},
+		"HyperliquidTransaction:SendMultiSig",
+		privateKey,
+	)
 }
 
 func signUserSignedAction(
@@ -166,11 +247,19 @@ func signUsdTransferAction(
 }
 
 func signSpotTransferAction(
-	action map[string]any,
+	action spotTransferAction,
 	privateKey *ecdsa.PrivateKey,
 ) (signature, error) {
+	actionMap := map[string]any{
+		"hyperliquidChain": action.HyperliquidChain,
+		"destination":      action.Destination,
+		"token":            action.Token,
+		"amount":           action.Amount,
+		"time":             big.NewInt(action.Time),
+	}
+
 	return signUserSignedAction(
-		action,
+		actionMap,
 		[]apitypes.Type{
 			{Name: "hyperliquidChain", Type: "string"},
 			{Name: "destination", Type: "string"},
@@ -184,11 +273,18 @@ func signSpotTransferAction(
 }
 
 func signWithdrawFromBridgeAction(
-	action map[string]any,
+	action withdrawFromBridgeAction,
 	privateKey *ecdsa.PrivateKey,
 ) (signature, error) {
+	actionMap := map[string]any{
+		"hyperliquidChain": action.HyperliquidChain,
+		"destination":      action.Destination,
+		"amount":           action.Amount,
+		"time":             big.NewInt(action.Time),
+	}
+
 	return signUserSignedAction(
-		action,
+		actionMap,
 		[]apitypes.Type{
 			{Name: "hyperliquidChain", Type: "string"},
 			{Name: "destination", Type: "string"},
@@ -274,11 +370,17 @@ func signUserDexAbstractionAction(
 }
 
 func signConvertToMultiSigUserAction(
-	action map[string]any,
+	action convertToMultiSigUserAction,
 	privateKey *ecdsa.PrivateKey,
 ) (signature, error) {
+	actionMap := map[string]any{
+		"hyperliquidChain": action.HyperliquidChain,
+		"signers":          action.Signers,
+		"nonce":            big.NewInt(action.Nonce),
+	}
+
 	return signUserSignedAction(
-		action,
+		actionMap,
 		[]apitypes.Type{
 			{Name: "hyperliquidChain", Type: "string"},
 			{Name: "signers", Type: "string"},
@@ -290,11 +392,19 @@ func signConvertToMultiSigUserAction(
 }
 
 func signTokenDelegateAction(
-	action map[string]any,
+	action tokenDelegateAction,
 	privateKey *ecdsa.PrivateKey,
 ) (signature, error) {
+	actionMap := map[string]any{
+		"hyperliquidChain": action.HyperliquidChain,
+		"validator":        action.Validator,
+		"wei":              big.NewInt(action.Wei),
+		"isUndelegate":     action.IsUndelegate,
+		"nonce":            big.NewInt(action.Nonce),
+	}
+
 	return signUserSignedAction(
-		action,
+		actionMap,
 		[]apitypes.Type{
 			{Name: "hyperliquidChain", Type: "string"},
 			{Name: "validator", Type: "address"},
@@ -308,11 +418,18 @@ func signTokenDelegateAction(
 }
 
 func signAgentAction(
-	action map[string]any,
+	action approveAgentAction,
 	privateKey *ecdsa.PrivateKey,
 ) (signature, error) {
+	actionMap := map[string]any{
+		"hyperliquidChain": action.HyperliquidChain,
+		"agentAddress":     action.AgentAddress,
+		"agentName":        action.AgentName,
+		"nonce":            big.NewInt(action.Nonce),
+	}
+
 	return signUserSignedAction(
-		action,
+		actionMap,
 		[]apitypes.Type{
 			{Name: "hyperliquidChain", Type: "string"},
 			{Name: "agentAddress", Type: "address"},
@@ -325,11 +442,18 @@ func signAgentAction(
 }
 
 func signApproveBuilderFeeAction(
-	action map[string]any,
+	action approveBuilderFeeAction,
 	privateKey *ecdsa.PrivateKey,
 ) (signature, error) {
+	actionMap := map[string]any{
+		"hyperliquidChain": action.HyperliquidChain,
+		"maxFeeRate":       action.MaxFeeRate,
+		"builder":          action.Builder,
+		"nonce":            big.NewInt(action.Nonce),
+	}
+
 	return signUserSignedAction(
-		action,
+		actionMap,
 		[]apitypes.Type{
 			{Name: "hyperliquidChain", Type: "string"},
 			{Name: "maxFeeRate", Type: "string"},

@@ -53,25 +53,3 @@ func WithModifyOrderReduceOnly(reduceOnly bool) ModifyOrderOption {
 		cfg.reduceOnly = reduceOnly
 	}
 }
-
-/*//////////////////////////////////////////////////////////////
-                        SCHEDULE CANCEL
-//////////////////////////////////////////////////////////////*/
-
-/*//////////////////////////////////////////////////////////////
-                         APPROVE AGENT
-//////////////////////////////////////////////////////////////*/
-
-// ApproveAgentOption is a functional option for approve agent operations
-type ApproveAgentOption func(*approveAgentConfig)
-
-type approveAgentConfig struct {
-	name mo.Option[string]
-}
-
-// WithAgentName sets the name for the agent
-func WithAgentName(name string) ApproveAgentOption {
-	return func(cfg *approveAgentConfig) {
-		cfg.name = mo.Some(name)
-	}
-}
