@@ -1,14 +1,36 @@
 package exchange
 
 import (
+	"context"
+	"crypto/ecdsa"
+	"encoding/json"
 	"fmt"
+	"math"
+	"slices"
+	"strings"
 	"time"
 
+	"github.com/banky/go-hyperliquid/info"
 	"github.com/banky/go-hyperliquid/internal/utils"
 	"github.com/banky/go-hyperliquid/types"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/samber/mo"
 )
+
+// ============================================================================
+// Request and Action Interfaces
+// ============================================================================
+
+// action is an interface for all action types that can be signed and posted
+type action interface {
+	getType() string
+}
+
+// request is an interface for all request types that can be converted to actions
+type request interface {
+	toAction(ctx context.Context, e *Exchange, opts ...any) (action, error)
+}
 
 // ============================================================================
 // Order Types
@@ -165,6 +187,41 @@ func WithTriggerOrder(triggerOrder TriggerOrder) orderRequestOption {
 	}
 }
 
+// toAction converts an orderRequest to an orderAction
+func (o orderRequest) toAction(
+	ctx context.Context,
+	e *Exchange,
+	opts ...any,
+) (action, error) {
+	// Extract builder and grouping from opts
+	var builder mo.Option[BuilderInfo]
+	var grouping mo.Option[OrderGrouping]
+
+	for _, opt := range opts {
+		switch v := opt.(type) {
+		case BuilderInfo:
+			builder = mo.Some(v)
+		case OrderGrouping:
+			grouping = mo.Some(v)
+		}
+	}
+
+	// Get asset ID for this order's coin
+	assetId, ok := e.info.GetAsset(o.coin)
+	if !ok {
+		return nil, fmt.Errorf("unknown coin: %s", o.coin)
+	}
+
+	// Convert order to wire format
+	wire, err := o.toOrderWire(assetId)
+	if err != nil {
+		return nil, fmt.Errorf("failed to convert order to wire: %w", err)
+	}
+
+	// Create action from the wire
+	return ordersToAction([]orderWire{wire}, builder, grouping), nil
+}
+
 type orderWire struct {
 	A int64         `json:"a"`
 	B bool          `json:"b"`
@@ -299,6 +356,43 @@ func WithModifyCloid(c types.Cloid) modifyRequestOption {
 	}
 }
 
+// toAction converts a modifyRequest to a batchModifyAction
+func (m modifyRequest) toAction(
+	ctx context.Context,
+	e *Exchange,
+	opts ...any,
+) (action, error) {
+	// Get asset ID for this modify's coin
+	assetId, ok := e.info.GetAsset(m.Order.coin)
+	if !ok {
+		return nil, fmt.Errorf("unknown coin: %s", m.Order.coin)
+	}
+
+	// Convert order to wire format
+	wire, err := m.Order.toOrderWire(assetId)
+	if err != nil {
+		return nil, fmt.Errorf("failed to convert order to wire: %w", err)
+	}
+
+	// Extract OID or CLOID
+	var oid any
+	if o, ok := m.Oid.Get(); ok {
+		oid = o
+	} else if c, ok := m.Cloid.Get(); ok {
+		oid = c
+	} else {
+		return nil, fmt.Errorf("invalid OID type for modify: either order ID or CLOID must be provided")
+	}
+
+	// Create modify wire and action
+	mw := modifyWire{
+		Oid:   oid,
+		Order: wire,
+	}
+
+	return modifiesToAction([]modifyWire{mw}), nil
+}
+
 type modifyWire struct {
 	Oid   any       `json:"oid"`
 	Order orderWire `json:"order"`
@@ -336,6 +430,25 @@ func CancelRequest(coin string, oid int64) cancelRequest {
 		Coin: coin,
 		Oid:  oid,
 	}
+}
+
+// toAction converts a cancelRequest to a cancelAction
+func (c cancelRequest) toAction(
+	ctx context.Context,
+	e *Exchange,
+	opts ...any,
+) (action, error) {
+	// Get asset ID for this cancel's coin
+	assetId, ok := e.info.GetAsset(c.Coin)
+	if !ok {
+		return nil, fmt.Errorf("unknown coin: %s", c.Coin)
+	}
+
+	// Convert cancel to wire format
+	cw := c.toCancelWire(assetId)
+
+	// Create action
+	return cancelsToAction([]cancelWire{cw}), nil
 }
 
 type cancelWire struct {
@@ -386,6 +499,25 @@ func CancelByCloidRequest(
 		Coin:  coin,
 		Cloid: cloid,
 	}
+}
+
+// toAction converts a cancelByCloidRequest to a cancelByCloidAction
+func (c cancelByCloidRequest) toAction(
+	ctx context.Context,
+	e *Exchange,
+	opts ...any,
+) (action, error) {
+	// Get asset ID for this cancel's coin
+	assetId, ok := e.info.GetAsset(c.Coin)
+	if !ok {
+		return nil, fmt.Errorf("unknown coin: %s", c.Coin)
+	}
+
+	// Convert cancel to wire format
+	cw := c.toCancelByCloidWire(assetId)
+
+	// Create action
+	return cancelsByCloidToAction([]cancelByCloidWire{cw}), nil
 }
 
 type cancelByCloidWire struct {
@@ -484,6 +616,49 @@ func WithMarketCloid(c types.Cloid) marketOpenRequestOption {
 	}
 }
 
+// toAction converts a marketOpenRequest to an orderAction
+// Note: This optionally accepts builder in opts
+func (m marketOpenRequest) toAction(
+	ctx context.Context,
+	e *Exchange,
+	opts ...any,
+) (action, error) {
+	// Extract builder from opts
+	var builder mo.Option[BuilderInfo]
+	for _, opt := range opts {
+		if b, ok := opt.(BuilderInfo); ok {
+			builder = mo.Some(b)
+			break
+		}
+	}
+
+	// Get slippage price
+	px, err := e.getSlippagePrice(
+		ctx,
+		m.coin,
+		m.isBuy,
+		m.slippage.OrElse(DEFAULT_SLIPPAGE),
+		m.px,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get slippage price: %w", err)
+	}
+
+	// Create an order request with IoC tif and reduceOnly=false
+	orderReq := OrderRequest(
+		m.coin,
+		m.isBuy,
+		m.sz,
+		px,
+		WithLimitOrder(LimitOrder{Tif: "Ioc"}),
+		WithReduceOnly(false),
+		withCloid(m.cloid),
+	)
+
+	// Convert order to action
+	return orderReq.toAction(ctx, e, builder)
+}
+
 // ============================================================================
 // Market Close Request
 // ============================================================================
@@ -553,6 +728,93 @@ func WithMarketCloseCloid(c types.Cloid) marketCloseRequestOption {
 	}
 }
 
+// toAction converts a marketCloseRequest to an orderAction
+// Note: This optionally accepts builder in opts
+func (m marketCloseRequest) toAction(
+	ctx context.Context,
+	e *Exchange,
+	opts ...any,
+) (action, error) {
+	// Extract builder from opts
+	var builder mo.Option[BuilderInfo]
+	for _, opt := range opts {
+		if b, ok := opt.(BuilderInfo); ok {
+			builder = mo.Some(b)
+			break
+		}
+	}
+
+	// Get user state to find the position
+	address := crypto.PubkeyToAddress(e.privateKey.PublicKey)
+	if a, ok := e.accountAddress.Get(); ok {
+		address = a
+	}
+	if v, ok := e.vaultAddress.Get(); ok {
+		address = v
+	}
+
+	dex := utils.GetDex(m.coin)
+	userState, err := e.info.UserState(ctx, address, dex)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get user state: %w", err)
+	}
+
+	// Find the position for this coin
+	var position *info.Position
+	var positionSize float64
+	if userState.AssetPositions != nil {
+		for _, assetPos := range userState.AssetPositions {
+			if assetPos.Position.Coin == m.coin {
+				position = &assetPos.Position
+				positionSize = float64(assetPos.Position.Szi)
+				break
+			}
+		}
+	}
+
+	if position == nil {
+		return nil, fmt.Errorf("no position found for coin: %s", m.coin)
+	}
+
+	// Determine size to close
+	var closeSz float64
+	if sz, ok := m.sz.Get(); ok {
+		closeSz = sz
+	} else {
+		// Close entire position
+		closeSz = math.Abs(positionSize)
+	}
+
+	// Determine buy/sell direction (opposite of current position)
+	isBuy := positionSize < 0
+
+	// Get slippage price
+	px, err := e.getSlippagePrice(
+		ctx,
+		m.coin,
+		isBuy,
+		m.slippage.OrElse(DEFAULT_SLIPPAGE),
+		m.px,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get slippage price: %w", err)
+	}
+
+	// Create an order request with IoC tif and reduceOnly=false
+	orderReq := OrderRequest(
+		m.coin,
+		isBuy,
+		closeSz,
+		px,
+		WithLimitOrder(LimitOrder{Tif: "Ioc"}),
+		WithReduceOnly(false),
+		withCloid(m.cloid),
+	)
+
+	// Convert order to action
+	return orderReq.toAction(ctx, e, builder)
+}
+
 // ============================================================================
 // Update Leverage Request
 // ============================================================================
@@ -592,6 +854,22 @@ func WithIsCross(isCross bool) updateLeverageRequestOption {
 	return func(cfg *updateLeverageRequestConfig) {
 		cfg.isCross = mo.Some(isCross)
 	}
+}
+
+// toAction converts an updateLeverageRequest to an updateLeverageAction
+func (u updateLeverageRequest) toAction(
+	ctx context.Context,
+	e *Exchange,
+	opts ...any,
+) (action, error) {
+	// Get asset ID for the leverage update
+	assetId, ok := e.info.GetAsset(u.coin)
+	if !ok {
+		return nil, fmt.Errorf("unknown coin: %s", u.coin)
+	}
+
+	// Create action
+	return updateLeverageToAction(u, assetId), nil
 }
 
 type updateLeverageAction struct {
@@ -637,6 +915,28 @@ func UpdateIsolatedMarginRequest(
 		coin:   coin,
 		amount: amount,
 	}
+}
+
+// toAction converts an updateIsolatedMarginRequest to an updateIsolatedMarginAction
+func (u updateIsolatedMarginRequest) toAction(
+	ctx context.Context,
+	e *Exchange,
+	opts ...any,
+) (action, error) {
+	// Convert amount to USD int
+	intAmount, err := utils.FloatToUsdInt(u.amount)
+	if err != nil {
+		return nil, fmt.Errorf("failed to convert amount to USD: %w", err)
+	}
+
+	// Get asset for this coin
+	asset, ok := e.info.NameToAsset(u.coin)
+	if !ok {
+		return nil, fmt.Errorf("unknown asset for name: %s", u.coin)
+	}
+
+	// Create action
+	return updateIsolatedMarginToAction(asset, intAmount), nil
 }
 
 type updateIsolatedMarginAction struct {
@@ -685,6 +985,15 @@ func ScheduleCancelRequest(t *time.Time) scheduleCancelRequest {
 	}
 }
 
+// toAction converts a scheduleCancelRequest to a scheduleCancelAction
+func (s scheduleCancelRequest) toAction(
+	ctx context.Context,
+	e *Exchange,
+	opts ...any,
+) (action, error) {
+	return scheduleCancelToAction(s), nil
+}
+
 type scheduleCancelAction struct {
 	Type string `json:"type"`
 	Time *int64 `json:"time,omitempty"`
@@ -705,6 +1014,33 @@ func scheduleCancelToAction(s scheduleCancelRequest) scheduleCancelAction {
 	}
 }
 
+// ============================================================================
+// Set Referrer Request
+// ============================================================================
+
+type setReferrerRequest struct {
+	code string
+}
+
+// SetReferrerRequest creates a new set referrer request
+func SetReferrerRequest(code string) setReferrerRequest {
+	return setReferrerRequest{
+		code: code,
+	}
+}
+
+// toAction converts a setReferrerRequest to a setReferrerAction
+func (s setReferrerRequest) toAction(
+	ctx context.Context,
+	e *Exchange,
+	opts ...any,
+) (action, error) {
+	return setReferrerAction{
+		Type: "setReferrer",
+		Code: s.code,
+	}, nil
+}
+
 type setReferrerAction struct {
 	Type string `json:"type"`
 	Code string `json:"code"`
@@ -717,6 +1053,26 @@ func (s setReferrerAction) getType() string {
 // ============================================================================
 // Create Sub Account Request
 // ============================================================================
+
+type createSubAccountRequest struct {
+	name string
+}
+
+// CreateSubAccountRequest creates a new create sub account request
+func CreateSubAccountRequest(name string) createSubAccountRequest {
+	return createSubAccountRequest{
+		name: name,
+	}
+}
+
+// toAction converts a createSubAccountRequest to a createSubAccountAction
+func (c createSubAccountRequest) toAction(
+	ctx context.Context,
+	e *Exchange,
+	opts ...any,
+) (action, error) {
+	return createSubAccountToAction(c.name), nil
+}
 
 type createSubAccountAction struct {
 	Type string `json:"type"`
@@ -734,6 +1090,64 @@ func createSubAccountToAction(n string) createSubAccountAction {
 	}
 }
 
+// ============================================================================
+// USD Class Transfer Request
+// ============================================================================
+
+type usdClassTransferRequest struct {
+	amount float64
+	toPerp bool
+}
+
+// UsdClassTransferRequest creates a new USD class transfer request
+func UsdClassTransferRequest(amount float64, toPerp bool) usdClassTransferRequest {
+	return usdClassTransferRequest{
+		amount: amount,
+		toPerp: toPerp,
+	}
+}
+
+// toAction converts a usdClassTransferRequest to a usdClassTransferAction
+// Note: This requires timestamp (int64) in opts
+func (u usdClassTransferRequest) toAction(
+	ctx context.Context,
+	e *Exchange,
+	opts ...any,
+) (action, error) {
+	// Extract timestamp from opts
+	var timestamp int64
+	for _, opt := range opts {
+		if ts, ok := opt.(int64); ok {
+			timestamp = ts
+			break
+		}
+	}
+
+	if timestamp == 0 {
+		return nil, fmt.Errorf("timestamp is required in opts for usdClassTransferRequest")
+	}
+
+	// Convert amount to wire format
+	strAmount, err := utils.FloatToWire(u.amount)
+	if err != nil {
+		return nil, fmt.Errorf("failed to convert amount to wire format: %w", err)
+	}
+
+	// Add vault address if present
+	if v, ok := e.vaultAddress.Get(); ok {
+		strAmount += fmt.Sprintf(" subaccount:%s", v.String())
+	}
+
+	return usdClassTransferAction{
+		Type:             "usdClassTransfer",
+		Amount:           strAmount,
+		ToPerp:           u.toPerp,
+		Nonce:            timestamp,
+		SignatureChainId: getSignatureChainId(),
+		HyperliquidChain: e.rest.NetworkName(),
+	}, nil
+}
+
 type usdClassTransferAction struct {
 	Type             string `json:"type"`
 	Amount           string `json:"amount"`
@@ -745,6 +1159,59 @@ type usdClassTransferAction struct {
 
 func (u usdClassTransferAction) getType() string {
 	return u.Type
+}
+
+// ============================================================================
+// USD Transfer Request
+// ============================================================================
+
+type usdTransferRequest struct {
+	amount      float64
+	destination common.Address
+}
+
+// UsdTransferRequest creates a new USD transfer request
+func UsdTransferRequest(amount float64, destination common.Address) usdTransferRequest {
+	return usdTransferRequest{
+		amount:      amount,
+		destination: destination,
+	}
+}
+
+// toAction converts a usdTransferRequest to a usdTransferAction
+// Note: This requires timestamp (int64) in opts
+func (u usdTransferRequest) toAction(
+	ctx context.Context,
+	e *Exchange,
+	opts ...any,
+) (action, error) {
+	// Extract timestamp from opts
+	var timestamp int64
+	for _, opt := range opts {
+		if ts, ok := opt.(int64); ok {
+			timestamp = ts
+			break
+		}
+	}
+
+	if timestamp == 0 {
+		return nil, fmt.Errorf("timestamp is required in opts for usdTransferRequest")
+	}
+
+	// Convert amount to wire format
+	strAmount, err := utils.FloatToWire(u.amount)
+	if err != nil {
+		return nil, fmt.Errorf("failed to convert amount to wire format: %w", err)
+	}
+
+	return usdTransferAction{
+		Type:             "usdSend",
+		Amount:           strAmount,
+		Destination:      strings.ToLower(u.destination.Hex()),
+		Time:             timestamp,
+		SignatureChainId: getSignatureChainId(),
+		HyperliquidChain: e.rest.NetworkName(),
+	}, nil
 }
 
 type usdTransferAction struct {
@@ -763,6 +1230,63 @@ func (u usdTransferAction) getType() string {
 // ============================================================================
 // Send Asset Request
 // ============================================================================
+
+type sendAssetRequest struct {
+	destination    common.Address
+	sourceDex      string
+	destinationDex string
+	token          string
+	amount         float64
+}
+
+// SendAssetRequest creates a new send asset request
+func SendAssetRequest(
+	destination common.Address,
+	sourceDex string,
+	destinationDex string,
+	token string,
+	amount float64,
+) sendAssetRequest {
+	return sendAssetRequest{
+		destination:    destination,
+		sourceDex:      sourceDex,
+		destinationDex: destinationDex,
+		token:          token,
+		amount:         amount,
+	}
+}
+
+// toAction converts a sendAssetRequest to a sendAssetAction
+func (s sendAssetRequest) toAction(
+	ctx context.Context,
+	e *Exchange,
+	opts ...any,
+) (action, error) {
+	// Convert amount to wire format
+	amountStr, err := utils.FloatToWire(s.amount)
+	if err != nil {
+		return nil, fmt.Errorf("failed to convert amount: %w", err)
+	}
+
+	// Get vault address if present
+	fromSubAccount := ""
+	if v, ok := e.vaultAddress.Get(); ok {
+		fromSubAccount = v.Hex()
+	}
+
+	return sendAssetAction{
+		Type:             "sendAsset",
+		Destination:      s.destination.Hex(),
+		SourceDex:        s.sourceDex,
+		DestinationDex:   s.destinationDex,
+		Token:            s.token,
+		Amount:           amountStr,
+		FromSubAccount:   fromSubAccount,
+		Nonce:            0, // Will be set by Exchange
+		SignatureChainId: getSignatureChainId(),
+		HyperliquidChain: e.rest.NetworkName(),
+	}, nil
+}
 
 type sendAssetAction struct {
 	Type             string `json:"type"`
@@ -785,6 +1309,35 @@ func (s sendAssetAction) getType() string {
 // Sub Account Transfer Request
 // ============================================================================
 
+type subAccountTransferRequest struct {
+	subAccount common.Address
+	isDeposit  bool
+	usd        int64
+}
+
+// SubAccountTransferRequest creates a new sub account transfer request
+func SubAccountTransferRequest(subAccount common.Address, isDeposit bool, usd int64) subAccountTransferRequest {
+	return subAccountTransferRequest{
+		subAccount: subAccount,
+		isDeposit:  isDeposit,
+		usd:        usd,
+	}
+}
+
+// toAction converts a subAccountTransferRequest to a subAccountTransferAction
+func (s subAccountTransferRequest) toAction(
+	ctx context.Context,
+	e *Exchange,
+	opts ...any,
+) (action, error) {
+	return subAccountTransferAction{
+		Type:           "subAccountTransfer",
+		SubAccountUser: strings.ToLower(s.subAccount.Hex()),
+		IsDeposit:      s.isDeposit,
+		Usd:            s.usd,
+	}, nil
+}
+
 type subAccountTransferAction struct {
 	Type           string `json:"type"`
 	SubAccountUser string `json:"subAccountUser"`
@@ -797,8 +1350,46 @@ func (s subAccountTransferAction) getType() string {
 }
 
 // ============================================================================
-// Sub Account Spot Transfer Action
+// Sub Account Spot Transfer Request
 // ============================================================================
+
+type subAccountSpotTransferRequest struct {
+	subAccountUser common.Address
+	isDeposit      bool
+	token          string
+	amount         float64
+}
+
+// SubAccountSpotTransferRequest creates a new sub account spot transfer request
+func SubAccountSpotTransferRequest(subAccountUser common.Address, isDeposit bool, token string, amount float64) subAccountSpotTransferRequest {
+	return subAccountSpotTransferRequest{
+		subAccountUser: subAccountUser,
+		isDeposit:      isDeposit,
+		token:          token,
+		amount:         amount,
+	}
+}
+
+// toAction converts a subAccountSpotTransferRequest to a subAccountSpotTransferAction
+func (s subAccountSpotTransferRequest) toAction(
+	ctx context.Context,
+	e *Exchange,
+	opts ...any,
+) (action, error) {
+	// Convert amount to wire format
+	strAmount, err := utils.FloatToWire(s.amount)
+	if err != nil {
+		return nil, fmt.Errorf("failed to convert amount to wire format: %w", err)
+	}
+
+	return subAccountSpotTransferAction{
+		Type:           "subAccountSpotTransfer",
+		SubAccountUser: strings.ToLower(s.subAccountUser.Hex()),
+		IsDeposit:      s.isDeposit,
+		Token:          s.token,
+		Amount:         strAmount,
+	}, nil
+}
 
 type subAccountSpotTransferAction struct {
 	Type           string `json:"type"`
@@ -813,8 +1404,37 @@ func (s subAccountSpotTransferAction) getType() string {
 }
 
 // ============================================================================
-// Vault Transfer Action
+// Vault Transfer Request
 // ============================================================================
+
+type vaultTransferRequest struct {
+	vaultAddress common.Address
+	isDeposit    bool
+	usd          int64
+}
+
+// VaultTransferRequest creates a new vault transfer request
+func VaultTransferRequest(vaultAddress common.Address, isDeposit bool, usd int64) vaultTransferRequest {
+	return vaultTransferRequest{
+		vaultAddress: vaultAddress,
+		isDeposit:    isDeposit,
+		usd:          usd,
+	}
+}
+
+// toAction converts a vaultTransferRequest to a vaultTransferAction
+func (v vaultTransferRequest) toAction(
+	ctx context.Context,
+	e *Exchange,
+	opts ...any,
+) (action, error) {
+	return vaultTransferAction{
+		Type:         "vaultTransfer",
+		VaultAddress: strings.ToLower(v.vaultAddress.Hex()),
+		IsDeposit:    v.isDeposit,
+		Usd:          v.usd,
+	}, nil
+}
 
 type vaultTransferAction struct {
 	Type         string `json:"type"`
@@ -828,8 +1448,60 @@ func (v vaultTransferAction) getType() string {
 }
 
 // ============================================================================
-// Spot Transfer Action
+// Spot Transfer Request
 // ============================================================================
+
+type spotTransferRequest struct {
+	amount      float64
+	destination common.Address
+	token       string
+}
+
+// SpotTransferRequest creates a new spot transfer request
+func SpotTransferRequest(amount float64, destination common.Address, token string) spotTransferRequest {
+	return spotTransferRequest{
+		amount:      amount,
+		destination: destination,
+		token:       token,
+	}
+}
+
+// toAction converts a spotTransferRequest to a spotTransferAction
+// Note: This requires timestamp (int64) in opts
+func (s spotTransferRequest) toAction(
+	ctx context.Context,
+	e *Exchange,
+	opts ...any,
+) (action, error) {
+	// Extract timestamp from opts
+	var timestamp int64
+	for _, opt := range opts {
+		if ts, ok := opt.(int64); ok {
+			timestamp = ts
+			break
+		}
+	}
+
+	if timestamp == 0 {
+		return nil, fmt.Errorf("timestamp is required in opts for spotTransferRequest")
+	}
+
+	// Convert amount to wire format
+	strAmount, err := utils.FloatToWire(s.amount)
+	if err != nil {
+		return nil, fmt.Errorf("failed to convert amount to wire format: %w", err)
+	}
+
+	return spotTransferAction{
+		Type:             "spotSend",
+		Destination:      strings.ToLower(s.destination.Hex()),
+		Token:            s.token,
+		Amount:           strAmount,
+		Time:             timestamp,
+		SignatureChainId: getSignatureChainId(),
+		HyperliquidChain: e.rest.NetworkName(),
+	}, nil
+}
 
 type spotTransferAction struct {
 	Type             string `json:"type"`
@@ -846,8 +1518,54 @@ func (s spotTransferAction) getType() string {
 }
 
 // ============================================================================
-// Token Delegate Action
+// Token Delegate Request
 // ============================================================================
+
+type tokenDelegateRequest struct {
+	validator    common.Address
+	wei          int64
+	isUndelegate bool
+}
+
+// TokenDelegateRequest creates a new token delegate request
+func TokenDelegateRequest(validator common.Address, wei int64, isUndelegate bool) tokenDelegateRequest {
+	return tokenDelegateRequest{
+		validator:    validator,
+		wei:          wei,
+		isUndelegate: isUndelegate,
+	}
+}
+
+// toAction converts a tokenDelegateRequest to a tokenDelegateAction
+// Note: This requires timestamp (int64) in opts
+func (t tokenDelegateRequest) toAction(
+	ctx context.Context,
+	e *Exchange,
+	opts ...any,
+) (action, error) {
+	// Extract timestamp from opts
+	var timestamp int64
+	for _, opt := range opts {
+		if ts, ok := opt.(int64); ok {
+			timestamp = ts
+			break
+		}
+	}
+
+	if timestamp == 0 {
+		return nil, fmt.Errorf("timestamp is required in opts for tokenDelegateRequest")
+	}
+
+	return tokenDelegateAction{
+		Type:             "tokenDelegate",
+		Validator:        strings.ToLower(t.validator.Hex()),
+		Wei:              t.wei,
+		IsUndelegate:     t.isUndelegate,
+		Nonce:            timestamp,
+		SignatureChainId: getSignatureChainId(),
+		HyperliquidChain: e.rest.NetworkName(),
+	}, nil
+}
 
 type tokenDelegateAction struct {
 	Type             string `json:"type"`
@@ -861,6 +1579,60 @@ type tokenDelegateAction struct {
 
 func (t tokenDelegateAction) getType() string {
 	return t.Type
+}
+
+// ============================================================================
+// Withdraw From Bridge Request
+// ============================================================================
+
+type withdrawFromBridgeRequest struct {
+	amount      float64
+	destination common.Address
+}
+
+func WithdrawFromBridgeRequest(
+	amount float64,
+	destination common.Address,
+) withdrawFromBridgeRequest {
+	return withdrawFromBridgeRequest{
+		amount:      amount,
+		destination: destination,
+	}
+}
+
+// toAction converts a withdrawFromBridgeRequest to a withdrawFromBridgeAction
+// Note: This requires timestamp (int64) in opts
+func (w withdrawFromBridgeRequest) toAction(
+	ctx context.Context,
+	e *Exchange,
+	opts ...any,
+) (action, error) {
+	// Extract timestamp from opts
+	var timestamp int64
+	for _, opt := range opts {
+		if ts, ok := opt.(int64); ok {
+			timestamp = ts
+			break
+		}
+	}
+
+	if timestamp == 0 {
+		return nil, fmt.Errorf("timestamp is required in opts for withdrawFromBridgeRequest")
+	}
+
+	strAmount, err := utils.FloatToWire(w.amount)
+	if err != nil {
+		return nil, fmt.Errorf("failed to convert amount to wire format: %w", err)
+	}
+
+	return withdrawFromBridgeAction{
+		Type:             "withdraw3",
+		Destination:      strings.ToLower(w.destination.Hex()),
+		Amount:           strAmount,
+		Time:             timestamp,
+		SignatureChainId: getSignatureChainId(),
+		HyperliquidChain: e.rest.NetworkName(),
+	}, nil
 }
 
 type withdrawFromBridgeAction struct {
@@ -906,6 +1678,54 @@ func WithAgentName(name string) approveAgentOption {
 	}
 }
 
+// toAction converts an approveAgentRequest to an approveAgentAction
+// Note: This requires agentPrivateKey (*ecdsa.PrivateKey) and timestamp (int64) in opts
+func (a approveAgentRequest) toAction(
+	ctx context.Context,
+	e *Exchange,
+	opts ...any,
+) (action, error) {
+	// Extract the agent private key and timestamp from opts
+	var agentPrivateKey *ecdsa.PrivateKey
+	var timestamp int64
+
+	for _, opt := range opts {
+		switch v := opt.(type) {
+		case *ecdsa.PrivateKey:
+			agentPrivateKey = v
+		case int64:
+			timestamp = v
+		}
+	}
+
+	if agentPrivateKey == nil {
+		return nil, fmt.Errorf("agent private key is required in opts for approveAgentRequest")
+	}
+
+	if timestamp == 0 {
+		return nil, fmt.Errorf("timestamp is required in opts for approveAgentRequest")
+	}
+
+	// Derive agent address from the key
+	agentAddress := crypto.PubkeyToAddress(agentPrivateKey.PublicKey)
+
+	// Extract agent name if provided
+	agentName := ""
+	if name, ok := a.agentName.Get(); ok {
+		agentName = name
+	}
+
+	// Create action
+	return approveAgentAction{
+		Type:             "approveAgent",
+		AgentAddress:     strings.ToLower(agentAddress.Hex()),
+		AgentName:        agentName,
+		Nonce:            timestamp,
+		SignatureChainId: getSignatureChainId(),
+		HyperliquidChain: e.rest.NetworkName(),
+	}, nil
+}
+
 type approveAgentAction struct {
 	Type             string `json:"type"`
 	AgentAddress     string `json:"agentAddress"`
@@ -917,6 +1737,55 @@ type approveAgentAction struct {
 
 func (a approveAgentAction) getType() string {
 	return a.Type
+}
+
+// ============================================================================
+// Approve Builder Fee Request
+// ============================================================================
+
+type approveBuilderFeeRequest struct {
+	builder    common.Address
+	maxFeeRate string
+}
+
+func ApproveBuilderFeeRequest(
+	builder common.Address,
+	maxFeeRate string,
+) approveBuilderFeeRequest {
+	return approveBuilderFeeRequest{
+		builder:    builder,
+		maxFeeRate: maxFeeRate,
+	}
+}
+
+// toAction converts an approveBuilderFeeRequest to an approveBuilderFeeAction
+// Note: This requires timestamp (int64) in opts
+func (a approveBuilderFeeRequest) toAction(
+	ctx context.Context,
+	e *Exchange,
+	opts ...any,
+) (action, error) {
+	// Extract timestamp from opts
+	var timestamp int64
+	for _, opt := range opts {
+		if ts, ok := opt.(int64); ok {
+			timestamp = ts
+			break
+		}
+	}
+
+	if timestamp == 0 {
+		return nil, fmt.Errorf("timestamp is required in opts for approveBuilderFeeRequest")
+	}
+
+	return approveBuilderFeeAction{
+		Type:             "approveBuilderFee",
+		MaxFeeRate:       a.maxFeeRate,
+		Builder:          strings.ToLower(a.builder.Hex()),
+		Nonce:            timestamp,
+		SignatureChainId: getSignatureChainId(),
+		HyperliquidChain: e.rest.NetworkName(),
+	}, nil
 }
 
 // ============================================================================
@@ -955,6 +1824,56 @@ func ConvertToMultiSigUserRequest(
 	}
 }
 
+// toAction converts a convertToMultiSigUserRequest to a convertToMultiSigUserAction
+// Note: This requires timestamp (int64) in opts
+func (c convertToMultiSigUserRequest) toAction(
+	ctx context.Context,
+	e *Exchange,
+	opts ...any,
+) (action, error) {
+	// Extract timestamp from opts
+	var timestamp int64
+	for _, opt := range opts {
+		if ts, ok := opt.(int64); ok {
+			timestamp = ts
+			break
+		}
+	}
+
+	if timestamp == 0 {
+		return nil, fmt.Errorf("timestamp is required in opts for convertToMultiSigUserRequest")
+	}
+
+	// Sort authorized users
+	sortedUsers := make([]common.Address, len(c.authorizedUsers))
+	copy(sortedUsers, c.authorizedUsers)
+	slices.SortFunc(
+		sortedUsers,
+		func(a, z common.Address) int {
+			return a.Cmp(z)
+		},
+	)
+
+	// Create signers JSON
+	signers := map[string]any{
+		"authorizedUsers": sortedUsers,
+		"threshold":       c.threshold,
+	}
+	signersJSON, err := json.Marshal(signers)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal signers: %w", err)
+	}
+
+	// Create action
+	return convertToMultiSigUserAction{
+		Type:             "convertToMultiSigUser",
+		Signers:          string(signersJSON),
+		Nonce:            timestamp,
+		SignatureChainId: getSignatureChainId(),
+		HyperliquidChain: e.rest.NetworkName(),
+	}, nil
+}
+
 // ============================================================================
 // Convert To Multi Sig User Action
 // ============================================================================
@@ -975,53 +1894,81 @@ func (a convertToMultiSigUserAction) getType() string {
 // Multi Sig Request
 // ============================================================================
 
-type multiSigRequest struct {
+type multiSigRequest[T request] struct {
+	multiSigUser  common.Address
+	innerRequest  T
+	signatures    []signature
+	nonce         int64
+	vaultAddress  mo.Option[common.Address]
+}
+
+type multiSigOption[T request] func(*multiSigConfig[T])
+
+type multiSigConfig[T request] struct {
 	multiSigUser common.Address
-	innerAction  any
+	innerRequest T
 	signatures   []signature
 	nonce        int64
 	vaultAddress mo.Option[common.Address]
 }
 
-type multiSigOption func(*multiSigConfig)
-
-type multiSigConfig struct {
-	multiSigUser common.Address
-	innerAction  any
-	signatures   []signature
-	nonce        int64
-	vaultAddress mo.Option[common.Address]
-}
-
-func MultiSigRequest(
+func MultiSigRequest[T request](
 	multiSigUser common.Address,
-	innerAction any,
+	innerRequest T,
 	signatures []signature,
 	nonce int64,
-	opts ...multiSigOption,
-) multiSigRequest {
-	cfg := multiSigConfig{
+	opts ...multiSigOption[T],
+) multiSigRequest[T] {
+	cfg := multiSigConfig[T]{
 		multiSigUser: multiSigUser,
-		innerAction:  innerAction,
+		innerRequest: innerRequest,
 		signatures:   signatures,
 		nonce:        nonce,
 	}
 	for _, opt := range opts {
 		opt(&cfg)
 	}
-	return multiSigRequest{
+	return multiSigRequest[T]{
 		multiSigUser: cfg.multiSigUser,
-		innerAction:  cfg.innerAction,
+		innerRequest: cfg.innerRequest,
 		signatures:   cfg.signatures,
 		nonce:        cfg.nonce,
 		vaultAddress: cfg.vaultAddress,
 	}
 }
 
-func WithMultiSigVaultAddress(vaultAddress common.Address) multiSigOption {
-	return func(cfg *multiSigConfig) {
+func WithMultiSigVaultAddress[T request](vaultAddress common.Address) multiSigOption[T] {
+	return func(cfg *multiSigConfig[T]) {
 		cfg.vaultAddress = mo.Some(vaultAddress)
 	}
+}
+
+// toAction converts a multiSigRequest to a multiSigAction
+func (m multiSigRequest[T]) toAction(
+	ctx context.Context,
+	e *Exchange,
+	opts ...any,
+) (action, error) {
+	// Get wallet address
+	walletAddress := crypto.PubkeyToAddress(e.privateKey.PublicKey)
+
+	// Convert inner request to action
+	innerAction, err := m.innerRequest.toAction(ctx, e, opts...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to convert inner request to action: %w", err)
+	}
+
+	// Create the multiSigAction
+	return multiSigAction{
+		Type:             "multiSig",
+		SignatureChainId: getSignatureChainId(),
+		Signatures:       m.signatures,
+		Payload: multiSigPayload{
+			MultiSigUser: strings.ToLower(m.multiSigUser.Hex()),
+			OuterSigner:  strings.ToLower(walletAddress.Hex()),
+			Action:       innerAction,
+		},
+	}, nil
 }
 
 // ============================================================================

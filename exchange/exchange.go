@@ -3,11 +3,9 @@ package exchange
 import (
 	"context"
 	"crypto/ecdsa"
-	"encoding/json"
 	"fmt"
 	"math"
 	"slices"
-	"strings"
 	"sync/atomic"
 	"time"
 
@@ -120,10 +118,6 @@ func (e *Exchange) ClearExpiresAfter() {
 
 // DEFAULT_SLIPPAGE is the default max slippage for market orders (5%)
 const DEFAULT_SLIPPAGE = 0.05
-
-/*//////////////////////////////////////////////////////////////
-                             ORDERS
-//////////////////////////////////////////////////////////////*/
 
 // Order creates a single order
 func (e *Exchange) Order(
@@ -575,11 +569,17 @@ func (e *Exchange) ScheduleCancel(
 	ctx context.Context,
 	request scheduleCancelRequest,
 ) (CancelResponse, error) {
-	action := scheduleCancelToAction(request)
+	action, err := request.toAction(ctx, e)
+	if err != nil {
+		return CancelResponse{}, fmt.Errorf(
+			"failed to convert request to action: %w",
+			err,
+		)
+	}
 
 	timestamp := e.nextNonce()
 	sig, err := signL1Action(
-		action,
+		action.(scheduleCancelAction),
 		uint64(timestamp),
 		e.privateKey,
 		e.vaultAddress,
@@ -599,17 +599,17 @@ func (e *Exchange) UpdateLeverage(
 	ctx context.Context,
 	request updateLeverageRequest,
 ) (UpdateResponse, error) {
-	// Get asset ID for the leverage update
-	assetId, ok := e.info.GetAsset(request.coin)
-	if !ok {
-		return UpdateResponse{}, fmt.Errorf("unknown coin: %s", request.coin)
+	action, err := request.toAction(ctx, e)
+	if err != nil {
+		return UpdateResponse{}, fmt.Errorf(
+			"failed to convert request to action: %w",
+			err,
+		)
 	}
-
-	action := updateLeverageToAction(request, assetId)
 
 	timestamp := e.nextNonce()
 	sig, err := signL1Action(
-		action,
+		action.(updateLeverageAction),
 		uint64(timestamp),
 		e.privateKey,
 		e.vaultAddress,
@@ -629,27 +629,17 @@ func (e *Exchange) UpdateIsolatedMargin(
 	ctx context.Context,
 	request updateIsolatedMarginRequest,
 ) (UpdateResponse, error) {
-	intAmount, err := utils.FloatToUsdInt(request.amount)
+	action, err := request.toAction(ctx, e)
 	if err != nil {
 		return UpdateResponse{}, fmt.Errorf(
-			"failed to convert amount to USD: %w",
+			"failed to convert request to action: %w",
 			err,
 		)
 	}
 
-	asset, ok := e.info.NameToAsset(request.coin)
-	if !ok {
-		return UpdateResponse{}, fmt.Errorf(
-			"unknown asset for name: %s",
-			request.coin,
-		)
-	}
-
-	action := updateIsolatedMarginToAction(asset, intAmount)
-
 	timestamp := e.nextNonce()
 	sig, err := signL1Action(
-		action,
+		action.(updateIsolatedMarginAction),
 		uint64(timestamp),
 		e.privateKey,
 		e.vaultAddress,
@@ -669,14 +659,18 @@ func (e *Exchange) SetReferrer(
 	ctx context.Context,
 	code string,
 ) (SetReferrerResponse, error) {
-	action := setReferrerAction{
-		Type: "setReferrer",
-		Code: code,
+	req := SetReferrerRequest(code)
+	action, err := req.toAction(ctx, e)
+	if err != nil {
+		return SetReferrerResponse{}, fmt.Errorf(
+			"failed to convert request to action: %w",
+			err,
+		)
 	}
 
 	timestamp := e.nextNonce()
 	sig, err := signL1Action(
-		action,
+		action.(setReferrerAction),
 		uint64(timestamp),
 		e.privateKey,
 		e.vaultAddress,
@@ -704,11 +698,18 @@ func (e *Exchange) CreateSubAccount(
 	ctx context.Context,
 	name string,
 ) (CreateSubAccountResponse, error) {
-	action := createSubAccountToAction(name)
+	req := CreateSubAccountRequest(name)
+	action, err := req.toAction(ctx, e)
+	if err != nil {
+		return CreateSubAccountResponse{}, fmt.Errorf(
+			"failed to convert request to action: %w",
+			err,
+		)
+	}
 
 	timestamp := e.nextNonce()
 	sig, err := signL1Action(
-		action,
+		action.(createSubAccountAction),
 		uint64(timestamp),
 		e.privateKey,
 		e.vaultAddress,
@@ -738,28 +739,19 @@ func (e *Exchange) UsdClassTransfer(
 	toPerp bool,
 ) (UpdateResponse, error) {
 	timestamp := e.nextNonce()
-	strAmount, err := utils.FloatToWire(amount)
+	req := UsdClassTransferRequest(amount, toPerp)
+	action, err := req.toAction(ctx, e, timestamp)
 	if err != nil {
 		return UpdateResponse{}, fmt.Errorf(
-			"failed to convert amount to wire format: %w",
+			"failed to convert request to action: %w",
 			err,
 		)
 	}
 
-	if v, ok := e.vaultAddress.Get(); ok {
-		strAmount += fmt.Sprintf(" subaccount:%s", v.String())
-	}
-
-	action := usdClassTransferAction{
-		Type:             "usdClassTransfer",
-		Amount:           strAmount,
-		ToPerp:           toPerp,
-		Nonce:            timestamp,
-		HyperliquidChain: e.rest.NetworkName(),
-		SignatureChainId: getSignatureChainId(),
-	}
-
-	sig, err := signUsdClassTransferAction(action, e.privateKey)
+	sig, err := signUsdClassTransferAction(
+		action.(usdClassTransferAction),
+		e.privateKey,
+	)
 
 	if err != nil {
 		return UpdateResponse{}, fmt.Errorf("failed to sign action: %w", err)
@@ -788,35 +780,22 @@ func (e *Exchange) SendAsset(
 	amount float64,
 ) (UpdateResponse, error) {
 	timestamp := e.nextNonce()
-
-	amountStr, err := utils.FloatToWire(amount)
+	req := SendAssetRequest(
+		destination,
+		sourceDex,
+		destinationDex,
+		token,
+		amount,
+	)
+	action, err := req.toAction(ctx, e, timestamp)
 	if err != nil {
 		return UpdateResponse{}, fmt.Errorf(
-			"failed to convert amount: %w",
+			"failed to convert request to action: %w",
 			err,
 		)
 	}
 
-	action := sendAssetAction{
-		Type:             "sendAsset",
-		Destination:      destination.Hex(),
-		SourceDex:        sourceDex,
-		DestinationDex:   destinationDex,
-		Token:            token,
-		Amount:           amountStr,
-		Nonce:            timestamp,
-		SignatureChainId: getSignatureChainId(),
-		HyperliquidChain: e.rest.NetworkName(),
-	}
-
-	if v, ok := e.vaultAddress.Get(); ok {
-		vaultHex := v.Hex()
-		action.FromSubAccount = vaultHex
-	} else {
-		action.FromSubAccount = ""
-	}
-
-	sig, err := signSendAssetAction(action, e.privateKey)
+	sig, err := signSendAssetAction(action.(sendAssetAction), e.privateKey)
 	if err != nil {
 		return UpdateResponse{}, fmt.Errorf("failed to sign action: %w", err)
 	}
@@ -831,17 +810,18 @@ func (e *Exchange) SubAccountTransfer(
 	isDeposit bool,
 	usd int64,
 ) (UpdateResponse, error) {
-	timestamp := e.nextNonce()
-
-	action := subAccountTransferAction{
-		Type:           "subAccountTransfer",
-		SubAccountUser: strings.ToLower(subAccount.Hex()),
-		IsDeposit:      isDeposit,
-		Usd:            usd,
+	req := SubAccountTransferRequest(subAccount, isDeposit, usd)
+	action, err := req.toAction(ctx, e)
+	if err != nil {
+		return UpdateResponse{}, fmt.Errorf(
+			"failed to convert request to action: %w",
+			err,
+		)
 	}
 
+	timestamp := e.nextNonce()
 	sig, err := signL1Action(
-		action,
+		action.(subAccountTransferAction),
 		uint64(timestamp),
 		e.privateKey,
 		mo.None[common.Address](),
@@ -863,25 +843,23 @@ func (e *Exchange) SubAccountSpotTransfer(
 	token string,
 	amount float64,
 ) (UpdateResponse, error) {
-	timestamp := e.nextNonce()
-	strAmount, err := utils.FloatToWire(amount)
+	req := SubAccountSpotTransferRequest(
+		subAccountUser,
+		isDeposit,
+		token,
+		amount,
+	)
+	action, err := req.toAction(ctx, e)
 	if err != nil {
 		return UpdateResponse{}, fmt.Errorf(
-			"failed to convert amount to wire format: %w",
+			"failed to convert request to action: %w",
 			err,
 		)
 	}
 
-	action := subAccountSpotTransferAction{
-		Type:           "subAccountSpotTransfer",
-		SubAccountUser: strings.ToLower(subAccountUser.Hex()),
-		IsDeposit:      isDeposit,
-		Token:          token,
-		Amount:         strAmount,
-	}
-
+	timestamp := e.nextNonce()
 	sig, err := signL1Action(
-		action,
+		action.(subAccountSpotTransferAction),
 		uint64(timestamp),
 		e.privateKey,
 		mo.None[common.Address](),
@@ -902,17 +880,18 @@ func (e *Exchange) VaultUsdTransfer(
 	isDeposit bool,
 	usd int64,
 ) (UpdateResponse, error) {
-	timestamp := e.nextNonce()
-
-	action := vaultTransferAction{
-		Type:         "vaultTransfer",
-		VaultAddress: strings.ToLower(vaultAddress.Hex()),
-		IsDeposit:    isDeposit,
-		Usd:          usd,
+	req := VaultTransferRequest(vaultAddress, isDeposit, usd)
+	action, err := req.toAction(ctx, e)
+	if err != nil {
+		return UpdateResponse{}, fmt.Errorf(
+			"failed to convert request to action: %w",
+			err,
+		)
 	}
 
+	timestamp := e.nextNonce()
 	sig, err := signL1Action(
-		action,
+		action.(vaultTransferAction),
 		uint64(timestamp),
 		e.privateKey,
 		mo.None[common.Address](),
@@ -934,24 +913,16 @@ func (e *Exchange) UsdTransfer(
 	destination common.Address,
 ) (UpdateResponse, error) {
 	timestamp := e.nextNonce()
-	strAmount, err := utils.FloatToWire(amount)
+	req := UsdTransferRequest(amount, destination)
+	action, err := req.toAction(ctx, e, timestamp)
 	if err != nil {
 		return UpdateResponse{}, fmt.Errorf(
-			"failed to convert amount to wire format: %w",
+			"failed to convert request to action: %w",
 			err,
 		)
 	}
 
-	action := usdTransferAction{
-		Type:             "usdSend",
-		Amount:           strAmount,
-		Destination:      strings.ToLower(destination.Hex()),
-		Time:             timestamp,
-		HyperliquidChain: e.rest.NetworkName(),
-		SignatureChainId: getSignatureChainId(),
-	}
-
-	sig, err := signUsdTransferAction(action, e.privateKey)
+	sig, err := signUsdTransferAction(action.(usdTransferAction), e.privateKey)
 	if err != nil {
 		return UpdateResponse{}, fmt.Errorf("failed to sign action: %w", err)
 	}
@@ -967,25 +938,19 @@ func (e *Exchange) SpotTransfer(
 	token string,
 ) (UpdateResponse, error) {
 	timestamp := e.nextNonce()
-	strAmount, err := utils.FloatToWire(amount)
+	req := SpotTransferRequest(amount, destination, token)
+	action, err := req.toAction(ctx, e, timestamp)
 	if err != nil {
 		return UpdateResponse{}, fmt.Errorf(
-			"failed to convert amount to wire format: %w",
+			"failed to convert request to action: %w",
 			err,
 		)
 	}
 
-	action := spotTransferAction{
-		Type:             "spotSend",
-		Destination:      strings.ToLower(destination.Hex()),
-		Token:            token,
-		Amount:           strAmount,
-		Time:             timestamp,
-		SignatureChainId: getSignatureChainId(),
-		HyperliquidChain: e.rest.NetworkName(),
-	}
-
-	sig, err := signSpotTransferAction(action, e.privateKey)
+	sig, err := signSpotTransferAction(
+		action.(spotTransferAction),
+		e.privateKey,
+	)
 	if err != nil {
 		return UpdateResponse{}, fmt.Errorf("failed to sign action: %w", err)
 	}
@@ -1001,17 +966,19 @@ func (e *Exchange) TokenDelegate(
 	isUndelegate bool,
 ) (UpdateResponse, error) {
 	timestamp := e.nextNonce()
-	action := tokenDelegateAction{
-		Type:             "tokenDelegate",
-		Validator:        strings.ToLower(validator.Hex()),
-		Wei:              wei,
-		IsUndelegate:     isUndelegate,
-		Nonce:            timestamp,
-		SignatureChainId: getSignatureChainId(),
-		HyperliquidChain: e.rest.NetworkName(),
+	req := TokenDelegateRequest(validator, wei, isUndelegate)
+	action, err := req.toAction(ctx, e, timestamp)
+	if err != nil {
+		return UpdateResponse{}, fmt.Errorf(
+			"failed to convert request to action: %w",
+			err,
+		)
 	}
 
-	sig, err := signTokenDelegateAction(action, e.privateKey)
+	sig, err := signTokenDelegateAction(
+		action.(tokenDelegateAction),
+		e.privateKey,
+	)
 	if err != nil {
 		return UpdateResponse{}, fmt.Errorf("failed to sign action: %w", err)
 	}
@@ -1026,24 +993,19 @@ func (e *Exchange) WithdrawFromBridge(
 	destination common.Address,
 ) (UpdateResponse, error) {
 	timestamp := e.nextNonce()
-	strAmount, err := utils.FloatToWire(amount)
+	req := WithdrawFromBridgeRequest(amount, destination)
+	action, err := req.toAction(ctx, e, timestamp)
 	if err != nil {
 		return UpdateResponse{}, fmt.Errorf(
-			"failed to convert amount to wire format: %w",
+			"failed to convert request to action: %w",
 			err,
 		)
 	}
 
-	action := withdrawFromBridgeAction{
-		Type:             "withdraw3",
-		Destination:      strings.ToLower(destination.Hex()),
-		Amount:           strAmount,
-		Time:             timestamp,
-		SignatureChainId: getSignatureChainId(),
-		HyperliquidChain: e.rest.NetworkName(),
-	}
-
-	sig, err := signWithdrawFromBridgeAction(action, e.privateKey)
+	sig, err := signWithdrawFromBridgeAction(
+		action.(withdrawFromBridgeAction),
+		e.privateKey,
+	)
 	if err != nil {
 		return UpdateResponse{}, fmt.Errorf("failed to sign action: %w", err)
 	}
@@ -1066,24 +1028,16 @@ func (e *Exchange) ApproveAgent(
 		)
 	}
 
-	agentAddress := crypto.PubkeyToAddress(agentPrivateKey.PublicKey)
 	timestamp := e.nextNonce()
-
-	agentName := ""
-	if name, ok := request.agentName.Get(); ok {
-		agentName = name
+	action, err := request.toAction(ctx, e, agentPrivateKey, timestamp)
+	if err != nil {
+		return UpdateResponse{}, nil, fmt.Errorf(
+			"failed to convert request to action: %w",
+			err,
+		)
 	}
 
-	action := approveAgentAction{
-		Type:             "approveAgent",
-		AgentAddress:     strings.ToLower(agentAddress.Hex()),
-		AgentName:        agentName,
-		Nonce:            timestamp,
-		SignatureChainId: getSignatureChainId(),
-		HyperliquidChain: e.rest.NetworkName(),
-	}
-
-	sig, err := signAgentAction(action, e.privateKey)
+	sig, err := signAgentAction(action.(approveAgentAction), e.privateKey)
 	if err != nil {
 		return UpdateResponse{}, nil, fmt.Errorf(
 			"failed to sign action: %w",
@@ -1107,17 +1061,19 @@ func (e *Exchange) ApproveBuilderFee(
 	maxFeeRate string,
 ) (UpdateResponse, error) {
 	timestamp := e.nextNonce()
-
-	action := approveBuilderFeeAction{
-		Type:             "approveBuilderFee",
-		MaxFeeRate:       maxFeeRate,
-		Builder:          strings.ToLower(builder.Hex()),
-		Nonce:            timestamp,
-		SignatureChainId: getSignatureChainId(),
-		HyperliquidChain: e.rest.NetworkName(),
+	req := ApproveBuilderFeeRequest(builder, maxFeeRate)
+	action, err := req.toAction(ctx, e, timestamp)
+	if err != nil {
+		return UpdateResponse{}, fmt.Errorf(
+			"failed to convert request to action: %w",
+			err,
+		)
 	}
 
-	sig, err := signApproveBuilderFeeAction(action, e.privateKey)
+	sig, err := signApproveBuilderFeeAction(
+		action.(approveBuilderFeeAction),
+		e.privateKey,
+	)
 	if err != nil {
 		return UpdateResponse{}, fmt.Errorf("failed to sign action: %w", err)
 	}
@@ -1135,40 +1091,19 @@ func (e *Exchange) ConvertToMultiSigUser(
 	ctx context.Context,
 	request convertToMultiSigUserRequest,
 ) (UpdateResponse, error) {
-	timestamp := e.nextNonce()
-
-	// Sort authorized users
-	sortedUsers := make([]common.Address, len(request.authorizedUsers))
-	copy(sortedUsers, request.authorizedUsers)
-	slices.SortFunc(
-		sortedUsers,
-		func(a, z common.Address) int {
-			return a.Cmp(z)
-		},
-	)
-
-	// Create signers JSON
-	signers := map[string]any{
-		"authorizedUsers": sortedUsers,
-		"threshold":       request.threshold,
-	}
-	signersJSON, err := json.Marshal(signers)
+	action, err := request.toAction(ctx, e)
 	if err != nil {
 		return UpdateResponse{}, fmt.Errorf(
-			"failed to marshal signers: %w",
+			"failed to convert request to action: %w",
 			err,
 		)
 	}
 
-	action := convertToMultiSigUserAction{
-		Type:             "convertToMultiSigUser",
-		Signers:          string(signersJSON),
-		Nonce:            timestamp,
-		SignatureChainId: getSignatureChainId(),
-		HyperliquidChain: e.rest.NetworkName(),
-	}
-
-	sig, err := signConvertToMultiSigUserAction(action, e.privateKey)
+	timestamp := e.nextNonce()
+	sig, err := signConvertToMultiSigUserAction(
+		action.(convertToMultiSigUserAction),
+		e.privateKey,
+	)
 	if err != nil {
 		return UpdateResponse{}, fmt.Errorf("failed to sign action: %w", err)
 	}
@@ -1690,28 +1625,24 @@ func (e *Exchange) ConvertToMultiSigUser(
 // }
 
 // MultiSig executes a multi-signature transaction
-// Use the generic Resp to specify the response type of the
-// action
-func MultiSig[Resp any](
+// Use the generic Resp to specify the response type of the action
+// and T to specify the type of the inner request
+func MultiSig[Resp any, T request](
 	ctx context.Context,
 	e *Exchange,
-	request multiSigRequest,
+	request multiSigRequest[T],
 ) (Resp, error) {
-	walletAddress := crypto.PubkeyToAddress(e.privateKey.PublicKey)
-
-	action := multiSigAction{
-		Type:             "multiSig",
-		SignatureChainId: getSignatureChainId(),
-		Signatures:       request.signatures,
-		Payload: multiSigPayload{
-			MultiSigUser: strings.ToLower(request.multiSigUser.Hex()),
-			OuterSigner:  strings.ToLower(walletAddress.Hex()),
-			Action:       request.innerAction,
-		},
+	action, err := request.toAction(ctx, e)
+	if err != nil {
+		var noResp Resp
+		return noResp, fmt.Errorf(
+			"failed to convert request to action: %w",
+			err,
+		)
 	}
 
 	sig, err := signMultiSigAction(
-		action,
+		action.(multiSigAction),
 		uint64(request.nonce),
 		e.privateKey,
 		request.vaultAddress,
