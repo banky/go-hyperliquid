@@ -17,7 +17,6 @@ import (
 	"github.com/joho/godotenv"
 	"github.com/maxatome/go-testdeep/helpers/tdsuite"
 	"github.com/maxatome/go-testdeep/td"
-	"github.com/samber/mo"
 )
 
 // ExchangeIntegrationSuite groups manual integration tests for the exchange.
@@ -517,43 +516,37 @@ func (s *ExchangeIntegrationSuite) TestApproveBuilderFee(
 func (s *ExchangeIntegrationSuite) TestConvertToMultisigSigner(
 	assert, require *td.T,
 ) {
-	request := OrderRequest(
-		"ETH",
-		true,
-		0.2,
-		1100,
-		WithLimitOrder(LimitOrder{Tif: "Gtc"}),
+
+	authorizedUserPrivateKey, err := crypto.HexToECDSA(
+		os.Getenv("MULTISIG_AUTHORIZED_USER_KEY"),
 	)
-	wire, err := request.toOrderWire(4)
 	require.CmpNoError(err)
-	action := ordersToAction(
-		[]orderWire{wire},
-		mo.None[BuilderInfo](),
-		mo.None[OrderGrouping](),
-	)
 
 	timestamp := s.exchange.nextNonce()
 
-	// authorizedUserPrivateKey, err := crypto.HexToECDSA(
-	// 	os.Getenv("MULTISIG_AUTHORIZED_USER_KEY"),
-	// )
-	require.CmpNoError(err)
-
-	sig, err := signMultisigL1ActionPayload(
-		action,
-		uint64(timestamp),
-		s.exchange.privateKey,
-		s.exchange.vaultAddress,
-		s.exchange.expiresAfter,
-		s.exchange.rest.IsMainnet(),
-		common.HexToAddress("0x8E47A44EEcC5EB73a69bE26BaD372a1FfEBf08bd"),
-		common.HexToAddress("0xd89155035ccd9458558d2706ba048199fbb68362"),
+	request := ConvertToMultiSigUserRequest(
+		[]common.Address{},
+		0,
 	)
-	require.CmpNoError(err)
 
-	fmt.Println(sig.R.Hex())
+	// request := OrderRequest(
+	// 	"ETH",
+	// 	true,
+	// 	0.2,
+	// 	1100,
+	// 	WithLimitOrder(LimitOrder{Tif: "Gtc"}),
+	// )
 
-	response, err := MultiSig[OrderResponse](
+	sig, err := SignMultisigPayload(
+		context.Background(),
+		s.exchange,
+		request,
+		authorizedUserPrivateKey,
+		common.HexToAddress("0x8E47A44EEcC5EB73a69bE26BaD372a1FfEBf08bd"),
+		timestamp,
+	)
+
+	response2, err := MultiSig[OrderResponse](
 		context.Background(),
 		s.exchange,
 		MultiSigRequest(
@@ -562,62 +555,12 @@ func (s *ExchangeIntegrationSuite) TestConvertToMultisigSigner(
 			[]signature{sig},
 			timestamp,
 		),
-		nil,
+		authorizedUserPrivateKey,
 	)
+
 	require.CmpNoError(err)
 
-	fmt.Printf("response:%+v\n", response)
-	// ctx := context.Background()
-
-	// authorizedUser1 := common.HexToAddress(
-	// 	"0xd89155035cCD9458558d2706bA048199FBB68362",
-	// )
-
-	// response, err := s.exchange.ConvertToMultiSigUser(
-	// 	ctx,
-	// 	[]common.Address{authorizedUser1},
-	// 	1,
-	// )
-	// require.CmpNoError(err)
-
-	// fmt.Printf("response:%+v\n", response)
-
-	// innerRequest := ConvertToMultiSigUserRequest(
-	// 	[]common.Address{},
-	// 	0,
-	// )
-	// sig, err := SignMultisigPayload(
-	// 	ctx,
-	// 	s.exchange,
-	// 	innerRequest,
-	// 	authorizedUserPrivateKey,
-	// 	common.HexToAddress("0x8E47A44EEcC5EB73a69bE26BaD372a1FfEBf08bd"),
-	// 	timestamp,
-	// )
-	// require.CmpNoError(err)
-
-	// response2, err := MultiSig[UpdateResponse](
-	// 	ctx,
-	// 	s.exchange,
-	// 	MultiSigRequest(
-	// 		common.HexToAddress("0x8E47A44EEcC5EB73a69bE26BaD372a1FfEBf08bd"),
-	// 		innerRequest,
-	// 		[]signature{sig},
-	// 		timestamp,
-	// 	),
-	// 	s.exchange.privateKey,
-	// )
-	// response2, err := s.exchange.ConvertToMultiSigUser(
-	// 	ctx,
-	// 	ConvertToMultiSigUserRequest(
-	// 		[]common.Address{},
-	// 		0,
-	// 	),
-	// )
-	require.CmpNoError(err)
-
-	// fmt.Printf("response:%+v\n", response2)
-
+	fmt.Printf("response:%+v\n", response2)
 }
 
 func (s *ExchangeIntegrationSuite) getTestAccountName() string {

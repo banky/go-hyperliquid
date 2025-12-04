@@ -132,7 +132,7 @@ func SignMultisigPayload[T request](
 		)
 	}
 
-	outerSigner := crypto.PubkeyToAddress(e.privateKey.PublicKey)
+	outerSigner := crypto.PubkeyToAddress(privateKey.PublicKey)
 
 	sig, err := signMultisigL1ActionPayload(
 		action,
@@ -1566,7 +1566,7 @@ func MultiSig[Resp any, T request](
 	request multiSigRequest[T],
 	outerSigner *ecdsa.PrivateKey,
 ) (Resp, error) {
-	action, err := request.toAction(ctx, e, request.nonce)
+	action, err := request.toAction(ctx, e, request.nonce, outerSigner)
 	if err != nil {
 		var noResp Resp
 		return noResp, fmt.Errorf(
@@ -1575,8 +1575,8 @@ func MultiSig[Resp any, T request](
 		)
 	}
 
-	sig, err := action.sign(e.privateKey, request.nonce, e)
-	// sig, err := action.sign(outerSigner, request.nonce, e)
+	// sig, err := action.sign(e.privateKey, request.nonce, e)
+	sig, err := action.sign(outerSigner, request.nonce, e)
 
 	var noResp Resp
 	if err != nil {

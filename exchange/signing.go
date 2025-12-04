@@ -119,6 +119,7 @@ func signL1ActionWithVault(
 // 	return signHash(common.BytesToHash(hash), privateKey)
 // }
 
+// The outer signer MUST be an authorized user on multiSigUser
 func signMultisigL1ActionPayload[T any](
 	action T,
 	nonce uint64,

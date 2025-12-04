@@ -2169,10 +2169,15 @@ func (c convertToMultiSigUserRequest) toAction(
 	)
 
 	// Create signers JSON
-	signers := map[string]any{
-		"authorizedUsers": sortedUsers,
-		"threshold":       c.threshold,
+	type signersForMarshal struct {
+		AuthorizedUsers []common.Address `json:"authorizedUsers"`
+		Threshold       int64            `json:"threshold"`
 	}
+	signers := signersForMarshal{
+		AuthorizedUsers: sortedUsers,
+		Threshold:       c.threshold,
+	}
+
 	signersJSON, err := json.Marshal(signers)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal signers: %w", err)
@@ -2274,7 +2279,10 @@ func (m multiSigRequest[T]) toAction(
 	opts ...any,
 ) (action, error) {
 	// Get wallet address
-	walletAddress := crypto.PubkeyToAddress(e.privateKey.PublicKey)
+	// walletAddress := crypto.PubkeyToAddress(e.privateKey.PublicKey)
+	walletAddress := crypto.PubkeyToAddress(
+		opts[1].(*ecdsa.PrivateKey).PublicKey,
+	)
 
 	// Convert inner request to action
 	innerAction, err := m.innerRequest.toAction(ctx, e, opts...)
