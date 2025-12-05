@@ -2,6 +2,7 @@ package exchange
 
 import (
 	"crypto/ecdsa"
+	"strings"
 	"testing"
 	"time"
 
@@ -328,6 +329,161 @@ func TestSubAccountTransferAction(t *testing.T) {
 
 	if sig.V != expectedV {
 		t.Fatalf("V mismatch: expected %d, got %d", expectedV, sig.V)
+	}
+}
+
+func TestSignMultisigUserSignedPayload(t *testing.T) {
+	privateKey, err := crypto.HexToECDSA(
+		"0123456789012345678901234567890123456789012345678901234567890123",
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	action := convertToMultiSigUserAction{
+		Type:             "convertToMultiSigUser",
+		Signers:          "{\"authorizedUsers\":[],\"threshold\":0}",
+		Nonce:            1764899871274,
+		SignatureChainId: "0x66eee",
+		HyperliquidChain: "Testnet",
+	}
+
+	sig, err := signMultiSigUserSignedActionPayload(
+		action,
+		privateKey,
+		action.getPayloadTypes(),
+		action.getPrimaryType(),
+		common.HexToAddress("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"),
+		crypto.PubkeyToAddress(privateKey.PublicKey),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	expectedR := common.HexToHash(
+		"0x95680134afef97d67282a380e685cf04bd74616b683856c44baa166de1d8f1d6",
+	)
+	expectedS := common.HexToHash(
+		"0x70298638635acf3cd717fff8907f9b4711f973f3f3ed6c39c3f78bfd47a7d87f",
+	)
+	expectedV := byte(28)
+
+	if sig.R != expectedR {
+		t.Fatalf(
+			"R mismatch: expected %s, got %s",
+			expectedR.Hex(),
+			sig.R.Hex(),
+		)
+	}
+
+	if sig.S != expectedS {
+		t.Fatalf(
+			"S mismatch: expected %s, got %s",
+			expectedS.Hex(),
+			sig.S.Hex(),
+		)
+	}
+
+	if sig.V != expectedV {
+		t.Fatalf("V mismatch: expected %d, got %d", expectedV, sig.V)
+	}
+}
+
+func TestSignMultisigAction(t *testing.T) {
+	privateKey, err := crypto.HexToECDSA(
+		"ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80",
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	authorizedUserPrivateKey, err := crypto.HexToECDSA(
+		"59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d",
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	multisigUser := common.HexToAddress(
+		"0x0000000000000000000000000000000000000005",
+	)
+
+	timestamp := 1764899871274
+	action := sendAssetAction{
+		Type:             "sendAsset",
+		SignatureChainId: "0x66eee",
+		HyperliquidChain: "Testnet",
+		Destination:      "0x0000000000000000000000000000000000000000",
+		SourceDex:        "",
+		DestinationDex:   "",
+		Token:            "USDC",
+		Amount:           "100.0",
+		FromSubAccount:   "",
+		Nonce:            int64(timestamp),
+	}
+	sig, err := signMultiSigUserSignedActionPayload(
+		action,
+		authorizedUserPrivateKey,
+		action.getPayloadTypes(),
+		action.getPrimaryType(),
+		multisigUser,
+		crypto.PubkeyToAddress(privateKey.PublicKey),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	m := multiSigAction{
+		Type:             "multisig",
+		SignatureChainId: "0x66eee",
+		Signatures:       []signature{sig},
+		Payload: multiSigPayload{
+			MultiSigUser: strings.ToLower(multisigUser.String()),
+			OuterSigner: strings.ToLower(
+				crypto.PubkeyToAddress(privateKey.PublicKey).Hex(),
+			),
+			Action: action,
+		},
+	}
+
+	mSig, err := signMultiSigAction(
+		m,
+		uint64(timestamp),
+		privateKey,
+		mo.None[common.Address](),
+		mo.None[time.Duration](),
+		false,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	expectedR := common.HexToHash(
+		"0x4c41eab5f2db78303e3bad4ed6dd33d3667432e9c24b44dda0255e013958e3b3",
+	)
+	expectedS := common.HexToHash(
+		"0x7ee085f43370696475603093e9c84c8a90f4b14659d65f8dcc10e97f400d3494",
+	)
+	expectedV := byte(28)
+
+	if mSig.R != expectedR {
+		t.Fatalf(
+			"R mismatch: expected %s, got %s",
+			expectedR.Hex(),
+			mSig.R.Hex(),
+		)
+	}
+
+	if mSig.S != expectedS {
+		t.Fatalf(
+			"S mismatch: expected %s, got %s",
+			expectedS.Hex(),
+			mSig.S.Hex(),
+		)
+	}
+
+	if mSig.V != expectedV {
+		t.Fatalf("V mismatch: expected %d, got %d", expectedV, mSig.V)
 	}
 }
 

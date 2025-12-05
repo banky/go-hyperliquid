@@ -59,9 +59,9 @@ func (s *ExchangeIntegrationSuite) Setup(t *td.T) error {
 func TestExchangeIntegrationSuite(t *testing.T) {
 	_ = godotenv.Load("../.env")
 	if os.Getenv("SKIP_INTEGRATION") == "true" {
-		fmt.Println("Skipping", os.Getenv("RUN_EXCHANGE_INTEGRATION"))
+		t.Log("Skipping", os.Getenv("RUN_EXCHANGE_INTEGRATION"))
 		t.Skip(
-			"skipping ExchangeIntegrationSuite; set RUN_EXCHANGE_INTEGRATION=1 to run",
+			"skipping ExchangeIntegrationSuite; set RUN_EXCHANGE_INTEGRATION=true to run",
 		)
 	}
 
@@ -77,7 +77,7 @@ func (s *ExchangeIntegrationSuite) TestOrder(assert, require *td.T) {
 	require.CmpNoError(err)
 	assert.NotNil(userState)
 
-	fmt.Println("user state:", userState)
+	require.TB.Log("user state:", userState)
 
 	// Place an order that should rest by setting the price very low
 	orderResponse, err := s.exchange.Order(
@@ -102,7 +102,7 @@ func (s *ExchangeIntegrationSuite) TestOrder(assert, require *td.T) {
 	)
 	require.CmpNoError(err)
 
-	fmt.Println(cancelResponse)
+	require.TB.Log(cancelResponse)
 }
 
 func (s *ExchangeIntegrationSuite) TestOrderWithCloid(assert, require *td.T) {
@@ -132,7 +132,7 @@ func (s *ExchangeIntegrationSuite) TestOrderWithCloid(assert, require *td.T) {
 
 	require.NotNil(orderResponse.Resting)
 
-	fmt.Println(cancelResponse)
+	require.TB.Log(cancelResponse)
 }
 
 func (s *ExchangeIntegrationSuite) TestModify(assert, require *td.T) {
@@ -176,7 +176,7 @@ func (s *ExchangeIntegrationSuite) TestModify(assert, require *td.T) {
 	require.NotNil(modifyResponse.Resting)
 	newOid := modifyResponse.Resting.Oid
 
-	fmt.Println(modifyResponse)
+	require.TB.Log(modifyResponse)
 
 	_, err = s.exchange.Cancel(
 		ctx,
@@ -201,9 +201,9 @@ func (s *ExchangeIntegrationSuite) TestMarketOrder(assert, require *td.T) {
 
 	fmt.Printf("response:%+v\n", openResponse)
 
-	fmt.Println("Waiting to close order")
+	require.TB.Log("Waiting to close order")
 	time.Sleep(time.Second * 5)
-	fmt.Println("Closing order")
+	require.TB.Log("Closing order")
 
 	closeResponse, err := s.exchange.MarketClose(
 		ctx,
@@ -516,7 +516,6 @@ func (s *ExchangeIntegrationSuite) TestApproveBuilderFee(
 func (s *ExchangeIntegrationSuite) TestConvertToMultisigSigner(
 	assert, require *td.T,
 ) {
-
 	authorizedUserPrivateKey, err := crypto.HexToECDSA(
 		os.Getenv("MULTISIG_AUTHORIZED_USER_KEY"),
 	)
@@ -529,14 +528,6 @@ func (s *ExchangeIntegrationSuite) TestConvertToMultisigSigner(
 		0,
 	)
 
-	// request := OrderRequest(
-	// 	"ETH",
-	// 	true,
-	// 	0.2,
-	// 	1100,
-	// 	WithLimitOrder(LimitOrder{Tif: "Gtc"}),
-	// )
-
 	sig, err := SignMultisigPayload(
 		context.Background(),
 		s.exchange,
@@ -545,6 +536,7 @@ func (s *ExchangeIntegrationSuite) TestConvertToMultisigSigner(
 		common.HexToAddress("0x8E47A44EEcC5EB73a69bE26BaD372a1FfEBf08bd"),
 		timestamp,
 	)
+	require.CmpNoError(err)
 
 	response2, err := MultiSig[OrderResponse](
 		context.Background(),

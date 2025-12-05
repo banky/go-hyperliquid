@@ -134,6 +134,31 @@ func SignMultisigPayload[T request](
 
 	outerSigner := crypto.PubkeyToAddress(privateKey.PublicKey)
 
+	// Check if this is a user-signed action or L1 action
+	actionMap := action.getMap()
+	if actionMap != nil {
+		// User-signed action - use signMultiSigUserSignedActionPayload
+		payloadTypes := action.getPayloadTypes()
+		primaryType := action.getPrimaryType()
+
+		sig, err := signMultiSigUserSignedActionPayload(
+			action,
+			privateKey,
+			payloadTypes,
+			primaryType,
+			multisigUser,
+			outerSigner,
+		)
+		if err != nil {
+			return signature{}, fmt.Errorf(
+				"failed to sign user-signed action: %w",
+				err,
+			)
+		}
+		return sig, nil
+	}
+
+	// L1 action - use signMultisigL1ActionPayload
 	sig, err := signMultisigL1ActionPayload(
 		action,
 		uint64(timestamp),
@@ -145,7 +170,7 @@ func SignMultisigPayload[T request](
 		outerSigner,
 	)
 	if err != nil {
-		return signature{}, fmt.Errorf("failed to sign action: %w", err)
+		return signature{}, fmt.Errorf("failed to sign L1 action: %w", err)
 	}
 
 	return sig, nil

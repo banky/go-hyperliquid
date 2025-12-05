@@ -203,7 +203,6 @@ func (m *Client) readLoop() {
 
 		message := string(data)
 		if message == "Websocket connection established." {
-			log.Println("websocket connection established")
 			m.mu.Lock()
 			m.wsReady = true
 			m.mu.Unlock()

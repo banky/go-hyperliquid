@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"math"
+	"math/big"
 	"slices"
 	"strings"
 	"time"
@@ -15,6 +16,7 @@ import (
 	"github.com/banky/go-hyperliquid/types"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/signer/core/apitypes"
 	"github.com/samber/mo"
 )
 
@@ -30,6 +32,16 @@ type action interface {
 		nonce int64,
 		e *Exchange,
 	) (signature, error)
+	// getMap returns a map of the action which can be used for
+	// EIP712 signing. Returns nil for L1 actions.
+	getMap() map[string]any
+	// getPayloadTypes returns the EIP-712 type definitions for user-signed
+	// actions.
+	// Returns nil for L1 actions.
+	getPayloadTypes() []apitypes.Type
+	// getPrimaryType returns the EIP-712 primary type for user-signed actions.
+	// Returns empty string for L1 actions.
+	getPrimaryType() string
 }
 
 // request is an interface for all request types that can be converted to
@@ -302,6 +314,18 @@ func (o orderAction) sign(
 	)
 }
 
+func (o orderAction) getMap() map[string]any {
+	return nil // L1 action
+}
+
+func (o orderAction) getPayloadTypes() []apitypes.Type {
+	return nil // L1 action
+}
+
+func (o orderAction) getPrimaryType() string {
+	return "" // L1 action
+}
+
 func ordersToAction(
 	orders []orderWire,
 	builder mo.Option[BuilderInfo],
@@ -443,6 +467,18 @@ func (b batchModifyAction) sign(
 	)
 }
 
+func (b batchModifyAction) getMap() map[string]any {
+	return nil // L1 action
+}
+
+func (b batchModifyAction) getPayloadTypes() []apitypes.Type {
+	return nil // L1 action
+}
+
+func (b batchModifyAction) getPrimaryType() string {
+	return "" // L1 action
+}
+
 // modifiesToAction converts a list of ModifyWires to a batch modify action
 func modifiesToAction(modifies []modifyWire) batchModifyAction {
 	return batchModifyAction{
@@ -522,6 +558,18 @@ func (c cancelAction) sign(
 		e.expiresAfter,
 		e.rest.IsMainnet(),
 	)
+}
+
+func (c cancelAction) getMap() map[string]any {
+	return nil // L1 action
+}
+
+func (c cancelAction) getPayloadTypes() []apitypes.Type {
+	return nil // L1 action
+}
+
+func (c cancelAction) getPrimaryType() string {
+	return "" // L1 action
 }
 
 // cancelsToAction converts a list of CancelRequests to a cancel action
@@ -607,6 +655,18 @@ func (c cancelByCloidAction) sign(
 		e.expiresAfter,
 		e.rest.IsMainnet(),
 	)
+}
+
+func (c cancelByCloidAction) getMap() map[string]any {
+	return nil // L1 action
+}
+
+func (c cancelByCloidAction) getPayloadTypes() []apitypes.Type {
+	return nil // L1 action
+}
+
+func (c cancelByCloidAction) getPrimaryType() string {
+	return "" // L1 action
 }
 
 // cancelsByCloidToAction converts a list of CancelRequestsByCloid to a
@@ -964,6 +1024,18 @@ func (u updateLeverageAction) sign(
 	)
 }
 
+func (u updateLeverageAction) getMap() map[string]any {
+	return nil // L1 action
+}
+
+func (u updateLeverageAction) getPayloadTypes() []apitypes.Type {
+	return nil // L1 action
+}
+
+func (u updateLeverageAction) getPrimaryType() string {
+	return "" // L1 action
+}
+
 // updateLeverageToAction converts an UpdateLeverageRequest to an
 // updateLeverageAction
 func updateLeverageToAction(
@@ -1047,6 +1119,18 @@ func (u updateIsolatedMarginAction) sign(
 	)
 }
 
+func (u updateIsolatedMarginAction) getMap() map[string]any {
+	return nil // L1 action
+}
+
+func (u updateIsolatedMarginAction) getPayloadTypes() []apitypes.Type {
+	return nil // L1 action
+}
+
+func (u updateIsolatedMarginAction) getPrimaryType() string {
+	return "" // L1 action
+}
+
 // updateIsolatedMarginToAction converts an UpdateIsolatedMarginRequest to an
 // updateIsolatedMarginAction
 func updateIsolatedMarginToAction(
@@ -1115,6 +1199,18 @@ func (s scheduleCancelAction) sign(
 	)
 }
 
+func (s scheduleCancelAction) getMap() map[string]any {
+	return nil // L1 action
+}
+
+func (s scheduleCancelAction) getPayloadTypes() []apitypes.Type {
+	return nil // L1 action
+}
+
+func (s scheduleCancelAction) getPrimaryType() string {
+	return "" // L1 action
+}
+
 func scheduleCancelToAction(s scheduleCancelRequest) scheduleCancelAction {
 	t := optionMap(s.time, func(value time.Time) int64 {
 		return value.UnixMilli()
@@ -1177,6 +1273,18 @@ func (s setReferrerAction) sign(
 	)
 }
 
+func (s setReferrerAction) getMap() map[string]any {
+	return nil // L1 action
+}
+
+func (s setReferrerAction) getPayloadTypes() []apitypes.Type {
+	return nil // L1 action
+}
+
+func (s setReferrerAction) getPrimaryType() string {
+	return "" // L1 action
+}
+
 // ============================================================================
 // Create Sub Account Request
 // ============================================================================
@@ -1223,6 +1331,18 @@ func (c createSubAccountAction) sign(
 		e.expiresAfter,
 		e.rest.IsMainnet(),
 	)
+}
+
+func (c createSubAccountAction) getMap() map[string]any {
+	return nil // L1 action
+}
+
+func (c createSubAccountAction) getPayloadTypes() []apitypes.Type {
+	return nil // L1 action
+}
+
+func (c createSubAccountAction) getPrimaryType() string {
+	return "" // L1 action
 }
 
 func createSubAccountToAction(n string) createSubAccountAction {
@@ -1319,6 +1439,28 @@ func (u usdClassTransferAction) sign(
 	return signUsdClassTransferAction(u, privateKey)
 }
 
+func (u usdClassTransferAction) getMap() map[string]any {
+	return map[string]any{
+		"hyperliquidChain": u.HyperliquidChain,
+		"amount":           u.Amount,
+		"toPerp":           u.ToPerp,
+		"nonce":            big.NewInt(u.Nonce),
+	}
+}
+
+func (u usdClassTransferAction) getPayloadTypes() []apitypes.Type {
+	return []apitypes.Type{
+		{Name: "hyperliquidChain", Type: "string"},
+		{Name: "amount", Type: "string"},
+		{Name: "toPerp", Type: "bool"},
+		{Name: "nonce", Type: "uint64"},
+	}
+}
+
+func (u usdClassTransferAction) getPrimaryType() string {
+	return "HyperliquidTransaction:UsdClassTransfer"
+}
+
 // ============================================================================
 // USD Transfer Request
 // ============================================================================
@@ -1401,6 +1543,28 @@ func (u usdTransferAction) sign(
 	return signUsdTransferAction(u, privateKey)
 }
 
+func (u usdTransferAction) getMap() map[string]any {
+	return map[string]any{
+		"hyperliquidChain": u.HyperliquidChain,
+		"destination":      u.Destination,
+		"amount":           u.Amount,
+		"time":             big.NewInt(u.Time),
+	}
+}
+
+func (u usdTransferAction) getPayloadTypes() []apitypes.Type {
+	return []apitypes.Type{
+		{Name: "hyperliquidChain", Type: "string"},
+		{Name: "destination", Type: "string"},
+		{Name: "amount", Type: "string"},
+		{Name: "time", Type: "uint64"},
+	}
+}
+
+func (u usdTransferAction) getPrimaryType() string {
+	return "HyperliquidTransaction:UsdSend"
+}
+
 // ============================================================================
 // Send Asset Request
 // ============================================================================
@@ -1450,7 +1614,7 @@ func (s sendAssetRequest) toAction(
 
 	return sendAssetAction{
 		Type:             "sendAsset",
-		Destination:      s.destination.Hex(),
+		Destination:      strings.ToLower(s.destination.Hex()),
 		SourceDex:        s.sourceDex,
 		DestinationDex:   s.destinationDex,
 		Token:            s.token,
@@ -1485,6 +1649,36 @@ func (s sendAssetAction) sign(
 	e *Exchange,
 ) (signature, error) {
 	return signSendAssetAction(s, privateKey)
+}
+
+func (s sendAssetAction) getMap() map[string]any {
+	return map[string]any{
+		"hyperliquidChain": s.HyperliquidChain,
+		"destination":      s.Destination,
+		"sourceDex":        s.SourceDex,
+		"destinationDex":   s.DestinationDex,
+		"token":            s.Token,
+		"amount":           s.Amount,
+		"fromSubAccount":   s.FromSubAccount,
+		"nonce":            big.NewInt(s.Nonce),
+	}
+}
+
+func (s sendAssetAction) getPayloadTypes() []apitypes.Type {
+	return []apitypes.Type{
+		{Name: "hyperliquidChain", Type: "string"},
+		{Name: "destination", Type: "string"},
+		{Name: "sourceDex", Type: "string"},
+		{Name: "destinationDex", Type: "string"},
+		{Name: "token", Type: "string"},
+		{Name: "amount", Type: "string"},
+		{Name: "fromSubAccount", Type: "string"},
+		{Name: "nonce", Type: "uint64"},
+	}
+}
+
+func (s sendAssetAction) getPrimaryType() string {
+	return "HyperliquidTransaction:SendAsset"
 }
 
 // ============================================================================
@@ -1548,6 +1742,18 @@ func (s subAccountTransferAction) sign(
 		e.expiresAfter,
 		e.rest.IsMainnet(),
 	)
+}
+
+func (s subAccountTransferAction) getMap() map[string]any {
+	return nil // L1 action
+}
+
+func (s subAccountTransferAction) getPayloadTypes() []apitypes.Type {
+	return nil // L1 action
+}
+
+func (s subAccountTransferAction) getPrimaryType() string {
+	return "" // L1 action
 }
 
 // ============================================================================
@@ -1628,6 +1834,18 @@ func (s subAccountSpotTransferAction) sign(
 	)
 }
 
+func (s subAccountSpotTransferAction) getMap() map[string]any {
+	return nil // L1 action
+}
+
+func (s subAccountSpotTransferAction) getPayloadTypes() []apitypes.Type {
+	return nil // L1 action
+}
+
+func (s subAccountSpotTransferAction) getPrimaryType() string {
+	return "" // L1 action
+}
+
 // ============================================================================
 // Vault Transfer Request
 // ============================================================================
@@ -1689,6 +1907,18 @@ func (v vaultTransferAction) sign(
 		e.expiresAfter,
 		e.rest.IsMainnet(),
 	)
+}
+
+func (v vaultTransferAction) getMap() map[string]any {
+	return nil // L1 action
+}
+
+func (v vaultTransferAction) getPayloadTypes() []apitypes.Type {
+	return nil // L1 action
+}
+
+func (v vaultTransferAction) getPrimaryType() string {
+	return "" // L1 action
 }
 
 // ============================================================================
@@ -1778,6 +2008,30 @@ func (s spotTransferAction) sign(
 	return signSpotTransferAction(s, privateKey)
 }
 
+func (s spotTransferAction) getMap() map[string]any {
+	return map[string]any{
+		"hyperliquidChain": s.HyperliquidChain,
+		"destination":      s.Destination,
+		"token":            s.Token,
+		"amount":           s.Amount,
+		"time":             big.NewInt(s.Time),
+	}
+}
+
+func (s spotTransferAction) getPayloadTypes() []apitypes.Type {
+	return []apitypes.Type{
+		{Name: "hyperliquidChain", Type: "string"},
+		{Name: "destination", Type: "string"},
+		{Name: "token", Type: "string"},
+		{Name: "amount", Type: "string"},
+		{Name: "time", Type: "uint64"},
+	}
+}
+
+func (s spotTransferAction) getPrimaryType() string {
+	return "HyperliquidTransaction:SpotSend"
+}
+
 // ============================================================================
 // Token Delegate Request
 // ============================================================================
@@ -1854,6 +2108,30 @@ func (t tokenDelegateAction) sign(
 	e *Exchange,
 ) (signature, error) {
 	return signTokenDelegateAction(t, privateKey)
+}
+
+func (t tokenDelegateAction) getMap() map[string]any {
+	return map[string]any{
+		"hyperliquidChain": t.HyperliquidChain,
+		"validator":        t.Validator,
+		"wei":              big.NewInt(t.Wei),
+		"isUndelegate":     t.IsUndelegate,
+		"nonce":            big.NewInt(t.Nonce),
+	}
+}
+
+func (t tokenDelegateAction) getPayloadTypes() []apitypes.Type {
+	return []apitypes.Type{
+		{Name: "hyperliquidChain", Type: "string"},
+		{Name: "validator", Type: "address"},
+		{Name: "wei", Type: "uint64"},
+		{Name: "isUndelegate", Type: "bool"},
+		{Name: "nonce", Type: "uint64"},
+	}
+}
+
+func (t tokenDelegateAction) getPrimaryType() string {
+	return "HyperliquidTransaction:TokenDelegate"
 }
 
 // ============================================================================
@@ -1934,6 +2212,28 @@ func (w withdrawFromBridgeAction) sign(
 	e *Exchange,
 ) (signature, error) {
 	return signWithdrawFromBridgeAction(w, privateKey)
+}
+
+func (w withdrawFromBridgeAction) getMap() map[string]any {
+	return map[string]any{
+		"hyperliquidChain": w.HyperliquidChain,
+		"destination":      w.Destination,
+		"amount":           w.Amount,
+		"time":             big.NewInt(w.Time),
+	}
+}
+
+func (w withdrawFromBridgeAction) getPayloadTypes() []apitypes.Type {
+	return []apitypes.Type{
+		{Name: "hyperliquidChain", Type: "string"},
+		{Name: "destination", Type: "string"},
+		{Name: "amount", Type: "string"},
+		{Name: "time", Type: "uint64"},
+	}
+}
+
+func (w withdrawFromBridgeAction) getPrimaryType() string {
+	return "HyperliquidTransaction:Withdraw"
 }
 
 // ============================================================================
@@ -2040,6 +2340,28 @@ func (a approveAgentAction) sign(
 	return signAgentAction(a, privateKey)
 }
 
+func (a approveAgentAction) getMap() map[string]any {
+	return map[string]any{
+		"hyperliquidChain": a.HyperliquidChain,
+		"agentAddress":     a.AgentAddress,
+		"agentName":        a.AgentName,
+		"nonce":            big.NewInt(a.Nonce),
+	}
+}
+
+func (a approveAgentAction) getPayloadTypes() []apitypes.Type {
+	return []apitypes.Type{
+		{Name: "hyperliquidChain", Type: "string"},
+		{Name: "agentAddress", Type: "address"},
+		{Name: "agentName", Type: "string"},
+		{Name: "nonce", Type: "uint64"},
+	}
+}
+
+func (a approveAgentAction) getPrimaryType() string {
+	return "HyperliquidTransaction:ApproveAgent"
+}
+
 // ============================================================================
 // Approve Builder Fee Request
 // ============================================================================
@@ -2114,6 +2436,28 @@ func (a approveBuilderFeeAction) sign(
 	e *Exchange,
 ) (signature, error) {
 	return signApproveBuilderFeeAction(a, privateKey)
+}
+
+func (a approveBuilderFeeAction) getMap() map[string]any {
+	return map[string]any{
+		"hyperliquidChain": a.HyperliquidChain,
+		"maxFeeRate":       a.MaxFeeRate,
+		"builder":          a.Builder,
+		"nonce":            big.NewInt(a.Nonce),
+	}
+}
+
+func (a approveBuilderFeeAction) getPayloadTypes() []apitypes.Type {
+	return []apitypes.Type{
+		{Name: "hyperliquidChain", Type: "string"},
+		{Name: "maxFeeRate", Type: "string"},
+		{Name: "builder", Type: "address"},
+		{Name: "nonce", Type: "uint64"},
+	}
+}
+
+func (a approveBuilderFeeAction) getPrimaryType() string {
+	return "HyperliquidTransaction:ApproveBuilderFee"
 }
 
 // ============================================================================
@@ -2199,10 +2543,10 @@ func (c convertToMultiSigUserRequest) toAction(
 
 type convertToMultiSigUserAction struct {
 	Type             string `json:"type"`
-	Signers          string `json:"signers"`
-	Nonce            int64  `json:"nonce"`
 	SignatureChainId string `json:"signatureChainId"`
 	HyperliquidChain string `json:"hyperliquidChain"`
+	Signers          string `json:"signers"`
+	Nonce            int64  `json:"nonce"`
 }
 
 func (a convertToMultiSigUserAction) getType() string {
@@ -2215,6 +2559,26 @@ func (a convertToMultiSigUserAction) sign(
 	e *Exchange,
 ) (signature, error) {
 	return signConvertToMultiSigUserAction(a, privateKey)
+}
+
+func (a convertToMultiSigUserAction) getMap() map[string]any {
+	return map[string]any{
+		"hyperliquidChain": a.HyperliquidChain,
+		"signers":          a.Signers,
+		"nonce":            big.NewInt(a.Nonce),
+	}
+}
+
+func (a convertToMultiSigUserAction) getPayloadTypes() []apitypes.Type {
+	return []apitypes.Type{
+		{Name: "hyperliquidChain", Type: "string"},
+		{Name: "signers", Type: "string"},
+		{Name: "nonce", Type: "uint64"},
+	}
+}
+
+func (a convertToMultiSigUserAction) getPrimaryType() string {
+	return "HyperliquidTransaction:ConvertToMultiSigUser"
 }
 
 // ============================================================================
@@ -2343,6 +2707,18 @@ func (a multiSigAction) sign(
 		e.expiresAfter,
 		e.rest.IsMainnet(),
 	)
+}
+
+func (a multiSigAction) getMap() map[string]any {
+	return nil // multiSig uses special signing
+}
+
+func (a multiSigAction) getPayloadTypes() []apitypes.Type {
+	return nil // multiSig uses special signing
+}
+
+func (a multiSigAction) getPrimaryType() string {
+	return "" // multiSig uses special signing
 }
 
 // ============================================================================

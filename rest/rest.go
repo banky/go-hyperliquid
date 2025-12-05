@@ -80,7 +80,7 @@ func (c *Client) Post(
 ) error {
 	r := resty.
 		New().
-		SetDebug(true).
+		// SetDebug(true).
 		SetJSONMarshaler(json.Marshal).
 		SetJSONUnmarshaler(json.Unmarshal)
 

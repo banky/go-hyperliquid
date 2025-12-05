@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/common/math"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/signer/core/apitypes"
@@ -86,39 +85,6 @@ func signL1ActionWithVault(
 	return signHash(common.BytesToHash(hash), privateKey)
 }
 
-// signMultiSigAction signs a multi-signature action
-// func signMultiSigAction(
-// 	action map[string]any,
-// 	nonce uint64,
-// 	privateKey *ecdsa.PrivateKey,
-// 	vaultAddress mo.Option[common.Address],
-// 	expiresAfter mo.Option[time.Duration],
-// 	isMainnet bool,
-// ) (signature, error) {
-// 	actionHash, err := hashAction(
-// 		action,
-// 		vaultAddress,
-// 		nonce,
-// 		expiresAfter,
-// 	)
-// 	if err != nil {
-// 		return signature{}, fmt.Errorf("failed to create action hash: %w", err)
-// 	}
-
-// 	phantomAgent := constructPhantomAgent(actionHash, isMainnet)
-// 	typedData := l1Payload(phantomAgent)
-
-// 	hash, _, err := apitypes.TypedDataAndHash(typedData)
-// 	if err != nil {
-// 		return signature{}, fmt.Errorf(
-// 			"failed generating hash for typed data: %w",
-// 			err,
-// 		)
-// 	}
-
-// 	return signHash(common.BytesToHash(hash), privateKey)
-// }
-
 // The outer signer MUST be an authorized user on multiSigUser
 func signMultisigL1ActionPayload[T any](
 	action T,
@@ -144,6 +110,21 @@ func signMultisigL1ActionPayload[T any](
 		expiresAfter,
 		isMainnet,
 	)
+}
+
+// addMultiSigTypes inserts multisig type definitions after hyperliquidChain
+func addMultiSigTypes(signTypes []apitypes.Type) []apitypes.Type {
+	enrichedTypes := []apitypes.Type{}
+	for _, signType := range signTypes {
+		enrichedTypes = append(enrichedTypes, signType)
+		if signType.Name == "hyperliquidChain" {
+			enrichedTypes = append(enrichedTypes,
+				apitypes.Type{Name: "payloadMultiSigUser", Type: "address"},
+				apitypes.Type{Name: "outerSigner", Type: "address"},
+			)
+		}
+	}
+	return enrichedTypes
 }
 
 func signMultiSigAction(
@@ -221,6 +202,46 @@ func signUserSignedAction(
 	}
 
 	return signHash(common.BytesToHash(hash), privateKey)
+}
+
+func signMultiSigUserSignedActionPayload[T action](
+	a T,
+	privateKey *ecdsa.PrivateKey,
+	payloadTypes []apitypes.Type,
+	primaryType string,
+	multiSigUser common.Address,
+	outerSigner common.Address,
+) (signature, error) {
+	actionMap := a.getMap()
+
+	actionMap["payloadMultiSigUser"] = strings.ToLower(multiSigUser.Hex())
+	actionMap["outerSigner"] = strings.ToLower(outerSigner.Hex())
+
+	enrichedTypes := []apitypes.Type{}
+	enriched := false
+	for _, payloadType := range payloadTypes {
+		enrichedTypes = append(enrichedTypes, payloadType)
+		if payloadType.Name == "hyperliquidChain" {
+			enriched = true
+			enrichedTypes = append(enrichedTypes,
+				apitypes.Type{Name: "payloadMultiSigUser", Type: "address"},
+				apitypes.Type{Name: "outerSigner", Type: "address"},
+			)
+		}
+	}
+
+	if !enriched {
+		return signature{}, fmt.Errorf(
+			"\"hyperliquidChain\" missing from sign_types. sign_types was not enriched with multi-sig signing types",
+		)
+	}
+
+	return signUserSignedAction(
+		actionMap,
+		enrichedTypes,
+		primaryType,
+		privateKey,
+	)
 }
 
 func signUsdTransferAction(
@@ -487,7 +508,6 @@ func hashAction[T any](
 	}
 
 	data := buf.Bytes()
-	fmt.Println("msg pack", hexutil.Encode(data))
 
 	nonceBytes := make([]byte, 8)
 	binary.BigEndian.PutUint64(nonceBytes, nonce)

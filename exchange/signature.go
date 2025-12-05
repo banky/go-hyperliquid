@@ -98,3 +98,12 @@ func (s *signature) UnmarshalJSON(data []byte) error {
 
 	return nil
 }
+
+func (s signature) String() string {
+	return fmt.Sprintf(
+		"R: %s, S: %s, V: %d",
+		hexutil.Encode(s.R[:]),
+		hexutil.Encode(s.S[:]),
+		s.V,
+	)
+}

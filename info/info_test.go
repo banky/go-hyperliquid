@@ -3,7 +3,6 @@ package info
 import (
 	"context"
 	"errors"
-	"fmt"
 	"testing"
 	"time"
 
@@ -823,7 +822,6 @@ func (s *InfoSuite) TestPullRealData(assert, require *td.T) {
 	for {
 		select {
 		case <-midsChan:
-			fmt.Println("Got mid")
 			messageCount++
 			if messageCount >= 3 {
 				return
